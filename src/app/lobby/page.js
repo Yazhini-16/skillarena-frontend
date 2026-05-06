@@ -22,12 +22,22 @@ const ENTRY_FEES = [
   { fee: 500, prize: 900, label: 'Legend',   difficulty: 'Hard',   popular: false },
 ];
 
+const CATEGORIES = [
+  { id: 'all',             label: 'All'             },
+  { id: 'arrays',          label: 'Arrays'          },
+  { id: 'strings',         label: 'Strings'         },
+  { id: 'math',            label: 'Math'            },
+  { id: 'algorithms',      label: 'Algorithms'      },
+  { id: 'data-structures', label: 'Data Structures' },
+];
+
 export default function LobbyPage() {
-  const [selectedFee, setSelectedFee] = useState(null);
-  const [inQueue, setInQueue]         = useState(false);
-  const [queueTime, setQueueTime]     = useState(0);
-  const socketRef                     = useRef(null);
-  const timerRef                      = useRef(null);
+  const [selectedFee,      setSelectedFee]      = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [inQueue,          setInQueue]          = useState(false);
+  const [queueTime,        setQueueTime]        = useState(0);
+  const socketRef  = useRef(null);
+  const timerRef   = useRef(null);
 
   const { isAuthenticated }    = useAuthStore();
   const { setMatch }           = useMatchStore();
@@ -37,16 +47,14 @@ export default function LobbyPage() {
   useEffect(() => {
     if (!isAuthenticated) { router.push('/login'); return; }
 
-    // Load wallet balance
     api.get('/api/wallet')
       .then(res => setWallet(res.data.data))
       .catch(() => {});
 
-    // Connect socket and register handlers
     const socket = connectSocket();
     socketRef.current = socket;
 
-    socket.on('queue:joined', (data) => {
+    socket.on('queue:joined', () => {
       setInQueue(true);
       toast.success('In queue — finding opponent...');
     });
@@ -62,7 +70,6 @@ export default function LobbyPage() {
       router.push('/match');
     });
 
-    // Cleanup handlers on unmount
     return () => {
       socket.off('queue:joined');
       socket.off('queue:error');
@@ -90,8 +97,8 @@ export default function LobbyPage() {
     }
     const socket = connectSocket();
     socketRef.current = socket;
-    console.log('Emitting queue:join with fee:', selectedFee);
-    socket.emit('queue:join', { entryFee: selectedFee });
+    // category is passed here so the server picks a problem from that category
+    socket.emit('queue:join', { entryFee: selectedFee, category: selectedCategory });
   };
 
   const leaveQueue = () => {
@@ -109,14 +116,15 @@ export default function LobbyPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar />
-
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 24px' }}>
-        <div style={{ marginBottom: '40px' }}>
+
+        {/* Header */}
+        <div style={{ marginBottom: '32px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>
             Choose your battle
           </h1>
           <p style={{ color: '#8888aa' }}>
-            Select an entry fee. Get matched. Code faster than your opponent.
+            Select a category, pick an entry fee, get matched, code faster than your opponent.
           </p>
         </div>
 
@@ -144,14 +152,41 @@ export default function LobbyPage() {
           </motion.div>
         )}
 
-        {/* Fee grid */}
+        {/* Category selector */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '13px', color: '#8888aa', marginBottom: '10px', fontWeight: 500 }}>
+            Problem category
+          </div>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => !inQueue && setSelectedCategory(cat.id)}
+                style={{
+                  padding: '6px 16px', borderRadius: '20px',
+                  fontSize: '13px', fontWeight: 500,
+                  background: selectedCategory === cat.id
+                    ? 'rgba(124,58,237,0.2)' : '#111118',
+                  border: `1px solid ${selectedCategory === cat.id ? '#7c3aed' : '#2a2a3a'}`,
+                  color: selectedCategory === cat.id ? '#8b5cf6' : '#8888aa',
+                  cursor: inQueue ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Entry fee grid */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
           gap: '16px', marginBottom: '32px',
         }}>
           {ENTRY_FEES.map((tier) => {
-            const locked = balance < tier.fee;
+            const locked   = balance < tier.fee;
             const selected = selectedFee === tier.fee;
             return (
               <motion.div
@@ -216,7 +251,9 @@ export default function LobbyPage() {
             <motion.div key="join" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <Button size="xl" fullWidth onClick={joinQueue} disabled={!selectedFee}>
                 <Zap size={20} fill="currentColor" />
-                {selectedFee ? `Enter match — ₹${selectedFee}` : 'Select an entry fee'}
+                {selectedFee
+                  ? `Enter match — ₹${selectedFee} · ${CATEGORIES.find(c => c.id === selectedCategory)?.label}`
+                  : 'Select an entry fee'}
               </Button>
             </motion.div>
           ) : (
@@ -240,12 +277,15 @@ export default function LobbyPage() {
                   />
                 ))}
               </div>
-
               <div style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>
                 Finding opponent...
               </div>
-              <div style={{ color: '#8888aa', fontSize: '14px', marginBottom: '8px' }}>
+              <div style={{ color: '#8888aa', fontSize: '14px', marginBottom: '4px' }}>
                 Entry fee: <strong style={{ color: '#f0f0f5' }}>₹{selectedFee}</strong>
+                {' · '}
+                Category: <strong style={{ color: '#8b5cf6' }}>
+                  {CATEGORIES.find(c => c.id === selectedCategory)?.label}
+                </strong>
               </div>
               <div style={{
                 fontSize: '36px', fontWeight: 800, color: '#8b5cf6',

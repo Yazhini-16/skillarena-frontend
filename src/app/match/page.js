@@ -1,4 +1,5 @@
 'use client';
+
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +11,8 @@ import { useAuthStore } from '@/store/authStore';
 import { connectSocket } from '@/lib/socket';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+
+
 
 const LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
@@ -44,11 +47,115 @@ export default function MatchPage() {
   const [activeTab, setActiveTab]     = useState('problem');
   const timerRef                      = useRef(null);
 
+
+
+  // Anti-cheat useEffect — add this as the FIRST useEffect in MatchPage
+useEffect(() => {
+  if (!match) return;
+
+  let warningCount = 0;
+  let forfeitTriggered = false;
+
+  // Request fullscreen immediately when match starts
+  const requestFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        toast('Match started in fullscreen mode', {
+          icon: '🔒',
+          duration: 3000,
+        });
+      }
+    } catch {
+      // Some browsers block fullscreen without user gesture — that's ok
+    }
+  };
+
+  requestFullscreen();
+
+  // Tab switch detection
+  const handleVisibilityChange = () => {
+    if (document.hidden && !submitted && !forfeitTriggered) {
+      warningCount++;
+      if (warningCount >= 2) {
+        forfeitTriggered = true;
+        const socket = connectSocket();
+        socket.emit('match:forfeit_request', {
+          matchId: match.matchId,
+          reason: 'tab_switch',
+        });
+        toast.error('Match forfeited — tab switching detected twice', {
+          duration: 5000,
+        });
+      } else {
+        toast.error(
+          `⚠️ Warning ${warningCount}/2: Do not leave this tab during a match!`,
+          { duration: 5000 }
+        );
+      }
+    }
+  };
+
+  // Prevent copy
+  const handleCopy = (e) => {
+    e.preventDefault();
+    toast.error('Copying is disabled during a match');
+  };
+
+  // Prevent paste
+  const handlePaste = (e) => {
+    e.preventDefault();
+    toast.error('Pasting is disabled during a match');
+  };
+
+  // Prevent right click
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+  };
+
+  // Prevent common keyboard shortcuts for cheating
+  const handleKeyDown = (e) => {
+    // Block Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A (select all to copy)
+    if (e.ctrlKey && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+      e.preventDefault();
+      toast.error('Copy/paste shortcuts are disabled');
+    }
+    // Block F12 (DevTools)
+    if (e.key === 'F12') {
+      e.preventDefault();
+    }
+    // Block Ctrl+Shift+I (DevTools)
+    if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+      e.preventDefault();
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  document.addEventListener('copy', handleCopy);
+  document.addEventListener('paste', handlePaste);
+  document.addEventListener('contextmenu', handleContextMenu);
+  document.addEventListener('keydown', handleKeyDown);
+
+  return () => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    document.removeEventListener('copy', handleCopy);
+    document.removeEventListener('paste', handlePaste);
+    document.removeEventListener('contextmenu', handleContextMenu);
+    document.removeEventListener('keydown', handleKeyDown);
+
+    // Exit fullscreen when leaving match
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+}, [match?.matchId, submitted]);
+
   useEffect(() => {
     if (!match) { router.push('/lobby'); return; }
 
     const socket = connectSocket();
     socket.emit('match:join', { matchId: match.matchId });
+    
 
     socket.on('match:timer_sync', (data) => {
       setTimeLeft(Math.floor(data.remainingMs / 1000));
@@ -664,6 +771,9 @@ export default function MatchPage() {
               onChange={(val) => !submitted && setCode(val || '')}
               theme="vs-dark"
               options={{
+                contextmenu: false,        // disable right-click menu
+                readOnly: submitted,
+                copyWithSyntaxHighlighting: false,
                 fontSize: 14,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
