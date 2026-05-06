@@ -61,19 +61,19 @@ export default function Navbar() {
             </Link>
 
   
-{isAuthenticated && (
-  <div style={{
-    display: 'flex', alignItems: 'center', gap: '4px',
-    padding: '6px 12px', background: '#1a1a24',
-    border: '1px solid #2a2a3a', borderRadius: '8px',
-  }}>
-    {[1, 2, 3].map(i => (
-      <span key={i} style={{
-        fontSize: '16px',
-        filter: i <= (user?.hearts ?? 3) ? 'none' : 'grayscale(1) opacity(0.3)',
-      }}>❤️</span>
-    ))}
-  </div>
+        {isAuthenticated && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '4px',
+            padding: '6px 12px', background: '#1a1a24',
+          border: '1px solid #2a2a3a', borderRadius: '8px',
+        }}>
+          {[1, 2, 3].map(i => (
+            <span key={i} style={{
+              fontSize: '16px',
+              filter: i <= (user?.hearts ?? 3) ? 'none' : 'grayscale(1) opacity(0.3)',
+          }}>❤️</span>
+        ))}
+      </div>
 )}
 
             <Link href="/leaderboard" style={{
