@@ -6,10 +6,14 @@ let socket = null;
 export const getSocket = () => {
   const token = Cookies.get('token');
 
-  // Always recreate socket if token changed
-  if (socket && socket.auth?.token !== token) {
-    socket.disconnect();
-    socket = null;
+  if (socket) {
+    // If already connected with same token — reuse it
+    if (socket.connected) return socket;
+    // If token changed — destroy and recreate
+    if (socket.auth?.token !== token) {
+      socket.disconnect();
+      socket = null;
+    }
   }
 
   if (!socket) {
@@ -19,17 +23,20 @@ export const getSocket = () => {
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      // Force a new connection per session
-      forceNew: true,
+      reconnectionDelay: 2000,
+      forceNew: false,  // reuse existing connection
     });
 
     socket.on('connect', () => {
-      console.log('Socket connected:', socket.id, '| User token prefix:', token?.slice(0, 20));
+      console.log('Socket connected:', socket.id);
     });
 
     socket.on('connect_error', (err) => {
-      console.error('Socket connect error:', err.message);
+      console.error('Socket error:', err.message);
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
     });
   }
 

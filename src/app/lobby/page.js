@@ -89,17 +89,22 @@ export default function LobbyPage() {
   }, [inQueue]);
 
   const joinQueue = () => {
-    if (!selectedFee) { toast.error('Select an entry fee first'); return; }
-    if (balance < selectedFee) {
-      toast.error('Insufficient balance — add funds first');
-      router.push('/wallet');
-      return;
-    }
-    const socket = connectSocket();
-    socketRef.current = socket;
-    // category is passed here so the server picks a problem from that category
-    socket.emit('queue:join', { entryFee: selectedFee, category: selectedCategory });
-  };
+  if (!selectedFee) { toast.error('Select an entry fee first'); return; }
+  if (balance < selectedFee) {
+    toast.error('Insufficient balance — add funds first');
+    router.push('/wallet');
+    return;
+  }
+  // Use the existing socket ref — don't create a new connection
+  if (!socketRef.current?.connected) {
+    toast.error('Not connected. Please refresh the page.');
+    return;
+  }
+  socketRef.current.emit('queue:join', {
+    entryFee: selectedFee,
+    category: selectedCategory,
+  });
+};
 
   const leaveQueue = () => {
     socketRef.current?.emit('queue:leave');

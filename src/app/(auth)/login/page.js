@@ -11,22 +11,22 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 
 export default function LoginPage() {
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [errors, setErrors] = useState({});
+  const [form, setForm]       = useState({ email: '', password: '' });
+  const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
-  const { setAuth } = useAuthStore();
-  const router = useRouter();
+  const { setAuth }           = useAuthStore();
+  const router                = useRouter();
 
   const validate = () => {
     const e = {};
-    if (!form.email) e.email = 'Email is required';
+    if (!form.email)    e.email    = 'Email is required';
     if (!form.password) e.password = 'Password is required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) return;
+    if (!validate()) return;   // stop here — no shake
     setLoading(true);
     try {
       const res = await api.post('/api/auth/login', form);
@@ -44,15 +44,18 @@ export default function LoginPage() {
   return (
     <div style={{
       minHeight: '100vh', background: '#0a0a0f',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: '24px',
+      display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: '24px',
     }}>
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         style={{ width: '100%', maxWidth: '400px' }}
       >
-        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '40px', justifyContent: 'center' }}>
+        <Link href="/" style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          marginBottom: '40px', justifyContent: 'center',
+        }}>
           <div style={{
             width: 36, height: 36, borderRadius: '10px',
             background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
@@ -69,29 +72,25 @@ export default function LoginPage() {
           background: '#111118', border: '1px solid #2a2a3a',
           borderRadius: '16px', padding: '32px',
         }}>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>Welcome back</h1>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '8px' }}>
+            Welcome back
+          </h1>
           <p style={{ color: '#8888aa', marginBottom: '28px', fontSize: '14px' }}>
             Log in to continue competing
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <Input
-              label="Email"
-              type="email"
-              placeholder="you@example.com"
+              label="Email" type="email" placeholder="you@example.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              error={errors.email}
-              icon={<Mail size={16}/>}
+              error={errors.email} icon={<Mail size={16}/>}
             />
             <Input
-              label="Password"
-              type="password"
-              placeholder="••••••••"
+              label="Password" type="password" placeholder="••••••••"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
-              error={errors.password}
-              icon={<Lock size={16}/>}
+              error={errors.password} icon={<Lock size={16}/>}
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
             />
           </div>
