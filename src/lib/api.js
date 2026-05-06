@@ -6,23 +6,41 @@ const api = axios.create({
   timeout: 10000,
 });
 
-// Auto-attach JWT token
+// Attach JWT token
 api.interceptors.request.use((config) => {
   const token = Cookies.get('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
   return config;
 });
 
-// Handle 401 — redirect to login
+// Handle auth errors safely
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status;
+    const currentPath = typeof window !== 'undefined'
+      ? window.location.pathname
+      : '';
+
+    // Prevent infinite redirect loop
+    if (status === 401) {
       Cookies.remove('token');
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+
+      // Don't redirect if already on auth pages
+      const authPages = ['/login', '/register'];
+
+      if (
+        typeof window !== 'undefined' &&
+        !authPages.includes(currentPath)
+      ) {
+        window.location.replace('/login');
       }
     }
+
     return Promise.reject(error);
   }
 );
