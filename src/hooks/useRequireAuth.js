@@ -1,23 +1,31 @@
 'use client';
+
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 
 export const useRequireAuth = () => {
-  const { isAuthenticated, _hydrated } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
+
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const hydrated = useAuthStore(state => state._hydrated);
+
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!_hydrated) return; // wait for store to hydrate from localStorage
+    if (!hydrated) return;
 
-    if (!isAuthenticated) {
+    // Prevent redirect loop on login/register pages
+    const publicRoutes = ['/', '/login', '/register'];
+
+    if (!isAuthenticated && !publicRoutes.includes(pathname)) {
       router.replace('/login');
       return;
     }
 
     setReady(true);
-  }, [_hydrated, isAuthenticated]);
+  }, [hydrated, isAuthenticated, pathname, router]);
 
   return ready;
 };

@@ -24,7 +24,7 @@ export default function AuthProvider({ children }) {
 
   // Don't render children until client has hydrated
   // This prevents server/client mismatch and redirect loops
-  if (!mounted) {
+  if (!mounted || !_hydrated) {
     return (
       <div style={{
         minHeight: '100vh',
