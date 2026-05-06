@@ -60,8 +60,7 @@ export default function Navbar() {
               ₹{parseFloat(balance).toFixed(2)}
             </Link>
 
-            // Add to auth store - update src/store/authStore.js to include hearts
-// In Navbar, after the wallet balance display:
+  
 {isAuthenticated && (
   <div style={{
     display: 'flex', alignItems: 'center', gap: '4px',
