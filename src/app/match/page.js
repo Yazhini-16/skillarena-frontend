@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,8 +10,6 @@ import { useAuthStore } from '@/store/authStore';
 import { connectSocket } from '@/lib/socket';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-
-
 
 const LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
@@ -46,10 +43,7 @@ export default function MatchPage() {
   const [runResults, setRunResults]   = useState(null);
   const [activeTab, setActiveTab]     = useState('problem');
   const timerRef                      = useRef(null);
-
-
-
-  // Anti-cheat useEffect — add this as the FIRST useEffect in MatchPage
+// Anti-cheat useEffect — add this as the FIRST useEffect in MatchPage
 useEffect(() => {
   if (!match) return;
 
@@ -150,12 +144,12 @@ useEffect(() => {
   };
 }, [match?.matchId, submitted]);
 
+
   useEffect(() => {
     if (!match) { router.push('/lobby'); return; }
 
     const socket = connectSocket();
     socket.emit('match:join', { matchId: match.matchId });
-    
 
     socket.on('match:timer_sync', (data) => {
       setTimeLeft(Math.floor(data.remainingMs / 1000));
@@ -771,9 +765,6 @@ useEffect(() => {
               onChange={(val) => !submitted && setCode(val || '')}
               theme="vs-dark"
               options={{
-                contextmenu: false,        // disable right-click menu
-                readOnly: submitted,
-                copyWithSyntaxHighlighting: false,
                 fontSize: 14,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,

@@ -5,6 +5,8 @@ import { Zap, Shield, Clock, Trophy, ChevronRight, Code2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/ui/Button';
 
+import { useAuthStore } from '@/store/authStore';
+
 const features = [
   { icon: <Code2 size={22}/>, title: 'Real coding challenges', desc: 'Solve actual algorithmic problems. Skill decides the winner, nothing else.' },
   { icon: <Clock size={22}/>, title: 'Live 1v1 battles', desc: 'Matched in seconds. Same problem, same clock. First to solve wins.' },
@@ -20,14 +22,28 @@ const entryFees = [
   { fee: 200, prize: 360, label: 'Champion' },
   { fee: 500, prize: 900, label: 'Legend' },
 ];
-import { useAuthStore } from '@/store/authStore';
+
+
 export default function LandingPage() {
-  const { isAuthenticated } = useAuthStore();
+   const { isAuthenticated } = useAuthStore();
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar/>
 
       {/* Hero */}
+      // In the Hero section — replace the buttons div:
+<div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+  <Link href={isAuthenticated ? '/lobby' : '/register'}>
+  <Button size="xl">
+    {isAuthenticated ? 'Go to lobby' : 'Create your account'} <ChevronRight size={18}/>
+  </Button>
+</Link>
+  <Link href={isAuthenticated ? '/lobby' : '/login'}>
+    <Button variant="secondary" size="xl">
+      {isAuthenticated ? 'Go to lobby' : 'Log in'}
+    </Button>
+  </Link>
+</div>
       <section style={{
         padding: '100px 24px 80px',
         textAlign: 'center',
@@ -84,18 +100,16 @@ export default function LandingPage() {
             Compete in real-time coding duels. Pay an entry fee, solve the problem faster than your opponent, and walk away with the prize.
           </p>
 
-          
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href={isAuthenticated ? '/lobby' : '/register'}>
-            <Button size="xl">
-              Start competing <ChevronRight size={18}/>
-            </Button>
+            <Link href="/register">
+              <Button size="xl">
+                Start competing <ChevronRight size={18}/>
+              </Button>
             </Link>
-            
-            <Link href={isAuthenticated ? '/lobby' : '/register'}>
-            <Button size="xl">
-              {isAuthenticated ? 'Go to lobby' : 'Create your account'} <ChevronRight size={18}/>
-            </Button>
+            <Link href="/login">
+              <Button variant="secondary" size="xl">
+                Watch a match
+              </Button>
             </Link>
           </div>
         </motion.div>
@@ -286,6 +300,7 @@ export default function LandingPage() {
             Create your account <ChevronRight size={18}/>
           </Button>
         </Link>
+        
       </section>
 
       {/* Footer */}
