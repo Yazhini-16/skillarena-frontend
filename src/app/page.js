@@ -5,7 +5,7 @@ import { Zap, Shield, Clock, Trophy, ChevronRight, Code2 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/ui/Button';
 
-import { useAuthStore } from '@/store/authStore';
+
 
 const features = [
   { icon: <Code2 size={22}/>, title: 'Real coding challenges', desc: 'Solve actual algorithmic problems. Skill decides the winner, nothing else.' },
@@ -25,7 +25,6 @@ const entryFees = [
 
 
 export default function LandingPage() {
-   const { isAuthenticated } = useAuthStore();
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar/>
@@ -34,10 +33,10 @@ export default function LandingPage() {
       // In the Hero section — replace the buttons div:
 <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
   <Link href={isAuthenticated ? '/lobby' : '/register'}>
-  <Button size="xl">
-    {isAuthenticated ? 'Go to lobby' : 'Create your account'} <ChevronRight size={18}/>
-  </Button>
-</Link>
+    <Button size="xl">
+      Start competing <ChevronRight size={18}/>
+    </Button>
+  </Link>
   <Link href={isAuthenticated ? '/lobby' : '/login'}>
     <Button variant="secondary" size="xl">
       {isAuthenticated ? 'Go to lobby' : 'Log in'}
@@ -300,7 +299,6 @@ export default function LandingPage() {
             Create your account <ChevronRight size={18}/>
           </Button>
         </Link>
-        
       </section>
 
       {/* Footer */}
