@@ -22,8 +22,6 @@ export default function AuthProvider({ children }) {
     }
   }, [mounted, _hydrated, isAuthenticated]);
 
-  // Don't render children until client has hydrated
-  // This prevents server/client mismatch and redirect loops
   if (!mounted) {
     return (
       <div style={{

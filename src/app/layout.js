@@ -1,6 +1,6 @@
-import { Toaster } from 'react-hot-toast';
 import AuthProvider from '@/components/AuthProvider';
 import Script from 'next/script';
+import { Toaster } from 'react-hot-toast';
 import './globals.css';
 
 export const metadata = {
@@ -10,8 +10,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
         <Script
           src="https://checkout.razorpay.com/v1/checkout.js"
           strategy="lazyOnload"
@@ -30,7 +30,7 @@ export default function RootLayout({ children }) {
               fontSize: '14px',
             },
             success: { iconTheme: { primary: '#10b981', secondary: '#0a0a0f' } },
-            error: { iconTheme: { primary: '#ef4444', secondary: '#0a0a0f' } },
+            error:   { iconTheme: { primary: '#ef4444', secondary: '#0a0a0f' } },
           }}
         />
       </body>

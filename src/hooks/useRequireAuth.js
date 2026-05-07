@@ -9,13 +9,11 @@ export const useRequireAuth = () => {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!_hydrated) return; // wait for store to hydrate from localStorage
-
+    if (!_hydrated) return;
     if (!isAuthenticated) {
       router.replace('/login');
       return;
     }
-
     setReady(true);
   }, [_hydrated, isAuthenticated]);
 

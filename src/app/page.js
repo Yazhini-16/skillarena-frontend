@@ -2,9 +2,18 @@
 
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { Zap, Shield, Clock, Trophy, ChevronRight, Code2 } from 'lucide-react';
+import {
+  Zap,
+  Shield,
+  Clock,
+  Trophy,
+  ChevronRight,
+  Code2,
+} from 'lucide-react';
+
 import Navbar from '@/components/Navbar';
 import Button from '@/components/ui/Button';
+import { useAuthStore } from '@/store/authStore';
 
 const features = [
   {
@@ -39,6 +48,8 @@ const entryFees = [
 ];
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuthStore();
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar />

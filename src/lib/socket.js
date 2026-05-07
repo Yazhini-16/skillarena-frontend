@@ -7,9 +7,7 @@ export const getSocket = () => {
   const token = Cookies.get('token');
 
   if (socket) {
-    // If already connected with same token — reuse it
     if (socket.connected) return socket;
-    // If token changed — destroy and recreate
     if (socket.auth?.token !== token) {
       socket.disconnect();
       socket = null;
@@ -24,7 +22,7 @@ export const getSocket = () => {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
-      forceNew: false,  // reuse existing connection
+      forceNew: false,
     });
 
     socket.on('connect', () => {
