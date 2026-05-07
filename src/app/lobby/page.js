@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useMatchStore } from '@/store/matchStore';
 import { useWalletStore } from '@/store/walletStore';
 import { connectSocket } from '@/lib/socket';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import api from '@/lib/api';
 
 const ENTRY_FEES = [
@@ -32,52 +33,63 @@ const CATEGORIES = [
 ];
 
 export default function LobbyPage() {
+  const ready = useRequireAuth();
+
   const [selectedFee,      setSelectedFee]      = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [inQueue,          setInQueue]          = useState(false);
   const [queueTime,        setQueueTime]        = useState(0);
-  const socketRef  = useRef(null);
-  const timerRef   = useRef(null);
+  const socketRef = useRef(null);
+  const timerRef  = useRef(null);
 
-  const { isAuthenticated }    = useAuthStore();
   const { setMatch }           = useMatchStore();
   const { balance, setWallet } = useWalletStore();
   const router                 = useRouter();
 
   useEffect(() => {
-    if (!isAuthenticated) { router.push('/login'); return; }
+    if (!ready) return;
 
+    // Load wallet balance
     api.get('/api/wallet')
       .then(res => setWallet(res.data.data))
       .catch(() => {});
 
+    // Connect socket — token is guaranteed available since ready=true
     const socket = connectSocket();
+    if (!socket) {
+      toast.error('Connection failed. Please refresh.');
+      return;
+    }
     socketRef.current = socket;
 
-    socket.on('queue:joined', () => {
+    const onQueueJoined = () => {
       setInQueue(true);
       toast.success('In queue — finding opponent...');
-    });
+    };
 
-    socket.on('queue:error', (data) => {
+    const onQueueError = (data) => {
       toast.error(data.message);
       setInQueue(false);
-    });
+    };
 
-    socket.on('match:ready', (data) => {
+    const onMatchReady = (data) => {
       setMatch(data);
       toast.success('Opponent found! Starting match...');
       router.push('/match');
-    });
+    };
+
+    socket.on('queue:joined', onQueueJoined);
+    socket.on('queue:error',  onQueueError);
+    socket.on('match:ready',  onMatchReady);
 
     return () => {
-      socket.off('queue:joined');
-      socket.off('queue:error');
-      socket.off('match:ready');
+      socket.off('queue:joined', onQueueJoined);
+      socket.off('queue:error',  onQueueError);
+      socket.off('match:ready',  onMatchReady);
     };
-  }, [isAuthenticated]);
+  }, [ready]);
 
-  // Queue timer
+  // Queue countdown timer
   useEffect(() => {
     if (inQueue) {
       timerRef.current = setInterval(() => setQueueTime(t => t + 1), 1000);
@@ -95,10 +107,16 @@ export default function LobbyPage() {
       router.push('/wallet');
       return;
     }
-    const socket = connectSocket();
-    socketRef.current = socket;
-    // category is passed here so the server picks a problem from that category
-    socket.emit('queue:join', { entryFee: selectedFee, category: selectedCategory });
+    const socket = socketRef.current;
+    if (!socket || !socket.connected) {
+      toast.error('Not connected to server. Please refresh.');
+      return;
+    }
+    console.log('Emitting queue:join', { entryFee: selectedFee, category: selectedCategory });
+    socket.emit('queue:join', {
+      entryFee: selectedFee,
+      category: selectedCategory,
+    });
   };
 
   const leaveQueue = () => {
@@ -113,12 +131,17 @@ export default function LobbyPage() {
   const difficultyVariant = (d) =>
     d === 'Easy' ? 'success' : d === 'Medium' ? 'warning' : 'danger';
 
+  if (!ready) return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ color: '#8888aa' }}>Loading...</div>
+    </div>
+  );
+
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar />
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 24px' }}>
 
-        {/* Header */}
         <div style={{ marginBottom: '32px' }}>
           <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>
             Choose your battle
@@ -128,7 +151,6 @@ export default function LobbyPage() {
           </p>
         </div>
 
-        {/* Low balance warning */}
         {balance < 10 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -144,11 +166,9 @@ export default function LobbyPage() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f59e0b', fontSize: '14px' }}>
               <Wallet size={16} />
-              Your balance is ₹{parseFloat(balance).toFixed(2)}. Add funds to compete.
+              Balance ₹{parseFloat(balance).toFixed(2)} — add funds to compete.
             </div>
-            <Button size="sm" onClick={() => router.push('/wallet')}>
-              Add funds
-            </Button>
+            <Button size="sm" onClick={() => router.push('/wallet')}>Add funds</Button>
           </motion.div>
         )}
 
@@ -165,8 +185,7 @@ export default function LobbyPage() {
                 style={{
                   padding: '6px 16px', borderRadius: '20px',
                   fontSize: '13px', fontWeight: 500,
-                  background: selectedCategory === cat.id
-                    ? 'rgba(124,58,237,0.2)' : '#111118',
+                  background: selectedCategory === cat.id ? 'rgba(124,58,237,0.2)' : '#111118',
                   border: `1px solid ${selectedCategory === cat.id ? '#7c3aed' : '#2a2a3a'}`,
                   color: selectedCategory === cat.id ? '#8b5cf6' : '#8888aa',
                   cursor: inQueue ? 'not-allowed' : 'pointer',
@@ -179,7 +198,7 @@ export default function LobbyPage() {
           </div>
         </div>
 
-        {/* Entry fee grid */}
+        {/* Fee grid */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
@@ -209,10 +228,8 @@ export default function LobbyPage() {
                     background: 'linear-gradient(135deg,#7c3aed,#6d28d9)',
                     padding: '2px 10px', borderRadius: '10px',
                     fontSize: '10px', fontWeight: 700, color: '#fff',
-                    letterSpacing: '0.05em',
                   }}>POPULAR</div>
                 )}
-
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                   <div>
                     <div style={{ fontSize: '13px', color: '#8888aa', marginBottom: '4px' }}>{tier.label}</div>
@@ -220,15 +237,10 @@ export default function LobbyPage() {
                   </div>
                   <Badge variant={difficultyVariant(tier.difficulty)}>{tier.difficulty}</Badge>
                 </div>
-
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  paddingTop: '16px', borderTop: '1px solid #1a1a24',
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: '16px', borderTop: '1px solid #1a1a24' }}>
                   <span style={{ fontSize: '13px', color: '#8888aa' }}>Prize pool</span>
                   <span style={{ fontSize: '14px', fontWeight: 600, color: '#10b981' }}>₹{tier.prize}</span>
                 </div>
-
                 {selected && (
                   <motion.div
                     initial={{ scaleX: 0 }}
