@@ -49,17 +49,12 @@ export default function LobbyPage() {
   useEffect(() => {
     if (!ready) return;
 
-    // Load wallet balance
     api.get('/api/wallet')
       .then(res => setWallet(res.data.data))
       .catch(() => {});
 
-    // Connect socket — token is guaranteed available since ready=true
     const socket = connectSocket();
-    if (!socket) {
-      toast.error('Connection failed. Please refresh.');
-      return;
-    }
+    if (!socket) { toast.error('Connection failed. Please refresh.'); return; }
     socketRef.current = socket;
 
     const onQueueJoined = () => {
@@ -74,7 +69,7 @@ export default function LobbyPage() {
 
     const onMatchReady = (data) => {
       setMatch(data);
-      toast.success('Opponent found! Starting match...');
+      toast.success('Opponent found!');
       router.push('/match');
     };
 
@@ -89,7 +84,6 @@ export default function LobbyPage() {
     };
   }, [ready]);
 
-  // Queue countdown timer
   useEffect(() => {
     if (inQueue) {
       timerRef.current = setInterval(() => setQueueTime(t => t + 1), 1000);
@@ -100,7 +94,7 @@ export default function LobbyPage() {
     return () => clearInterval(timerRef.current);
   }, [inQueue]);
 
-  const joinQueue = () => {
+  const joinQueue = async () => {
     if (!selectedFee) { toast.error('Select an entry fee first'); return; }
     if (balance < selectedFee) {
       toast.error('Insufficient balance — add funds first');
@@ -109,17 +103,26 @@ export default function LobbyPage() {
     }
     const socket = socketRef.current;
     if (!socket || !socket.connected) {
-      toast.error('Not connected to server. Please refresh.');
+      toast.error('Not connected. Please refresh.');
       return;
     }
-    console.log('Emitting queue:join', { entryFee: selectedFee, category: selectedCategory });
-    socket.emit('queue:join', {
-      entryFee: selectedFee,
-      category: selectedCategory,
-    });
+
+    // Request fullscreen HERE — this is a direct click handler so browser allows it
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Fullscreen blocked — continue anyway
+    }
+
+    socket.emit('queue:join', { entryFee: selectedFee, category: selectedCategory });
   };
 
   const leaveQueue = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    }
     socketRef.current?.emit('queue:leave');
     setInQueue(false);
     toast('Left the queue');
@@ -153,20 +156,15 @@ export default function LobbyPage() {
 
         {balance < 10 && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             style={{
-              background: 'rgba(245,158,11,0.1)',
-              border: '1px solid rgba(245,158,11,0.3)',
-              borderRadius: '10px', padding: '14px 18px',
-              marginBottom: '24px',
-              display: 'flex', alignItems: 'center',
-              justifyContent: 'space-between', gap: '12px',
+              background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+              borderRadius: '10px', padding: '14px 18px', marginBottom: '24px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f59e0b', fontSize: '14px' }}>
-              <Wallet size={16} />
-              Balance ₹{parseFloat(balance).toFixed(2)} — add funds to compete.
+              <Wallet size={16}/> Balance ₹{parseFloat(balance).toFixed(2)} — add funds to compete.
             </div>
             <Button size="sm" onClick={() => router.push('/wallet')}>Add funds</Button>
           </motion.div>
@@ -183,13 +181,11 @@ export default function LobbyPage() {
                 key={cat.id}
                 onClick={() => !inQueue && setSelectedCategory(cat.id)}
                 style={{
-                  padding: '6px 16px', borderRadius: '20px',
-                  fontSize: '13px', fontWeight: 500,
+                  padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 500,
                   background: selectedCategory === cat.id ? 'rgba(124,58,237,0.2)' : '#111118',
                   border: `1px solid ${selectedCategory === cat.id ? '#7c3aed' : '#2a2a3a'}`,
                   color: selectedCategory === cat.id ? '#8b5cf6' : '#8888aa',
-                  cursor: inQueue ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.15s',
+                  cursor: inQueue ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                 }}
               >
                 {cat.label}
@@ -200,8 +196,7 @@ export default function LobbyPage() {
 
         {/* Fee grid */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
           gap: '16px', marginBottom: '32px',
         }}>
           {ENTRY_FEES.map((tier) => {
@@ -243,8 +238,7 @@ export default function LobbyPage() {
                 </div>
                 {selected && (
                   <motion.div
-                    initial={{ scaleX: 0 }}
-                    animate={{ scaleX: 1 }}
+                    initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
                     style={{
                       position: 'absolute', bottom: 0, left: 0, right: 0,
                       height: '2px', background: '#7c3aed',
@@ -262,7 +256,7 @@ export default function LobbyPage() {
           {!inQueue ? (
             <motion.div key="join" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <Button size="xl" fullWidth onClick={joinQueue} disabled={!selectedFee}>
-                <Zap size={20} fill="currentColor" />
+                <Zap size={20} fill="currentColor"/>
                 {selectedFee
                   ? `Enter match — ₹${selectedFee} · ${CATEGORIES.find(c => c.id === selectedCategory)?.label}`
                   : 'Select an entry fee'}
@@ -271,27 +265,23 @@ export default function LobbyPage() {
           ) : (
             <motion.div
               key="queue"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0 }}
+              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
               style={{
                 background: '#111118', border: '1px solid #2a2a3a',
                 borderRadius: '16px', padding: '40px', textAlign: 'center',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
-                {[0, 1, 2].map(i => (
+                {[0,1,2].map(i => (
                   <motion.div
                     key={i}
-                    animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
+                    animate={{ scale: [1,1.5,1], opacity: [0.4,1,0.4] }}
                     transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity }}
                     style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }}
                   />
                 ))}
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>
-                Finding opponent...
-              </div>
+              <div style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Finding opponent...</div>
               <div style={{ color: '#8888aa', fontSize: '14px', marginBottom: '4px' }}>
                 Entry fee: <strong style={{ color: '#f0f0f5' }}>₹{selectedFee}</strong>
                 {' · '}
@@ -305,9 +295,7 @@ export default function LobbyPage() {
               }}>
                 {formatTime(queueTime)}
               </div>
-              <Button variant="ghost" size="sm" onClick={leaveQueue}>
-                Cancel search
-              </Button>
+              <Button variant="ghost" size="sm" onClick={leaveQueue}>Cancel search</Button>
             </motion.div>
           )}
         </AnimatePresence>

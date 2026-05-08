@@ -44,7 +44,7 @@ export default function MatchPage() {
   const [evalResult,  setEvalResult]  = useState(null);
   const [runResults,  setRunResults]  = useState(null);
   const [activeTab,   setActiveTab]   = useState('problem');
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  
   const timerRef    = useRef(null);
   const warningRef  = useRef(0);
   const forfeitedRef = useRef(false);
@@ -254,15 +254,7 @@ export default function MatchPage() {
     setCode(DEFAULT_CODE[lang]);
   };
 
-  const handleEnterFullscreen = async () => {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-      }
-    } catch {
-      toast.error('Fullscreen not available in your browser');
-    }
-  };
+  
 
   const handleRun = () => {
     if (!code.trim()) { toast.error('Write some code first'); return; }
@@ -301,32 +293,8 @@ export default function MatchPage() {
       height: '100vh', display: 'flex', flexDirection: 'column',
       background: '#0a0a0f', overflow: 'hidden',
     }}>
-      {/* Fullscreen prompt banner — shows until fullscreen is entered */}
-      {!isFullscreen && (
-        <div style={{
-          background: 'rgba(124,58,237,0.15)',
-          border: '1px solid rgba(124,58,237,0.4)',
-          padding: '8px 20px',
-          display: 'flex', alignItems: 'center',
-          justifyContent: 'space-between',
-          fontSize: '13px', color: '#8b5cf6',
-          flexShrink: 0,
-        }}>
-          <span>🔒 For a fair match, please enter fullscreen mode</span>
-          <button
-            onClick={handleEnterFullscreen}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '4px 12px', borderRadius: '6px',
-              background: '#7c3aed', color: '#fff',
-              border: 'none', cursor: 'pointer', fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            <Maximize size={13}/> Enter Fullscreen
-          </button>
-        </div>
-      )}
+      
+      
 
       {/* Top bar */}
       <div style={{
