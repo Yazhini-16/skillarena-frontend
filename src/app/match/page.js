@@ -3,152 +3,139 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
-import { Clock, Zap, CheckCircle, AlertCircle, Loader, Play } from 'lucide-react';
+import { Clock, Zap, CheckCircle, AlertCircle, Loader, Play, Maximize } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMatchStore } from '@/store/matchStore';
 import { useAuthStore } from '@/store/authStore';
 import { connectSocket } from '@/lib/socket';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 
 const LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
-  { id: 'python', label: 'Python' },
-  { id: 'cpp', label: 'C++' },
-  { id: 'java', label: 'Java' },
+  { id: 'python',     label: 'Python'     },
+  { id: 'cpp',        label: 'C++'        },
+  { id: 'java',       label: 'Java'       },
 ];
 
 const DEFAULT_CODE = {
   javascript: '// Read input from stdin\nconst lines = require("fs").readFileSync("/dev/stdin","utf8").trim().split("\\n");\n\n// Write your solution below\n\n',
-  python: '# Read input\nimport sys\nlines = sys.stdin.read().strip().split("\\n")\n\n# Write your solution below\n\n',
-  cpp: '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    \n    // Your solution here\n    \n    return 0;\n}\n',
-  java: 'import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        // Your solution here\n    }\n}\n',
+  python:     '# Read input\nimport sys\nlines = sys.stdin.read().strip().split("\\n")\n\n# Write your solution below\n\n',
+  cpp:        '#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    // Your solution here\n    return 0;\n}\n',
+  java:       'import java.util.*;\nimport java.io.*;\n\npublic class Main {\n    public static void main(String[] args) throws Exception {\n        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));\n        // Your solution here\n    }\n}\n',
 };
 
 export default function MatchPage() {
+  const ready = useRequireAuth();
   const {
     match, opponent, problem, timer,
     opponentStatus, setOpponentStatus, setResult,
   } = useMatchStore();
   const { user } = useAuthStore();
-  const router = useRouter();
+  const router   = useRouter();
 
-  const [language, setLanguage]       = useState('javascript');
-  const [code, setCode]               = useState(DEFAULT_CODE.javascript);
-  const [timeLeft, setTimeLeft]       = useState(null);
-  const [submitted, setSubmitted]     = useState(false);
-  const [running, setRunning]         = useState(false);
-  const [evaluating, setEvaluating]   = useState(false);
-  const [evalResult, setEvalResult]   = useState(null);
-  const [runResults, setRunResults]   = useState(null);
-  const [activeTab, setActiveTab]     = useState('problem');
-  const timerRef                      = useRef(null);
-// Anti-cheat useEffect — add this as the FIRST useEffect in MatchPage
-useEffect(() => {
-  if (!match) return;
+  const [language,    setLanguage]    = useState('javascript');
+  const [code,        setCode]        = useState(DEFAULT_CODE.javascript);
+  const [timeLeft,    setTimeLeft]    = useState(null);
+  const [submitted,   setSubmitted]   = useState(false);
+  const [running,     setRunning]     = useState(false);
+  const [evaluating,  setEvaluating]  = useState(false);
+  const [evalResult,  setEvalResult]  = useState(null);
+  const [runResults,  setRunResults]  = useState(null);
+  const [activeTab,   setActiveTab]   = useState('problem');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const timerRef    = useRef(null);
+  const warningRef  = useRef(0);
+  const forfeitedRef = useRef(false);
+  const editorRef   = useRef(null);
 
-  let warningCount = 0;
-  let forfeitTriggered = false;
-
-  // Request fullscreen immediately when match starts
-  const requestFullscreen = async () => {
-    try {
-      if (document.documentElement.requestFullscreen) {
-        await document.documentElement.requestFullscreen();
-        toast('Match started in fullscreen mode', {
-          icon: '🔒',
-          duration: 3000,
-        });
-      }
-    } catch {
-      // Some browsers block fullscreen without user gesture — that's ok
-    }
-  };
-
-  requestFullscreen();
-
-  // Tab switch detection
-  const handleVisibilityChange = () => {
-    if (document.hidden && !submitted && !forfeitTriggered) {
-      warningCount++;
-      if (warningCount >= 2) {
-        forfeitTriggered = true;
-        const socket = connectSocket();
-        socket.emit('match:forfeit_request', {
-          matchId: match.matchId,
-          reason: 'tab_switch',
-        });
-        toast.error('Match forfeited — tab switching detected twice', {
-          duration: 5000,
-        });
-      } else {
-        toast.error(
-          `⚠️ Warning ${warningCount}/2: Do not leave this tab during a match!`,
-          { duration: 5000 }
-        );
-      }
-    }
-  };
-
-  // Prevent copy
-  const handleCopy = (e) => {
-    e.preventDefault();
-    toast.error('Copying is disabled during a match');
-  };
-
-  // Prevent paste
-  const handlePaste = (e) => {
-    e.preventDefault();
-    toast.error('Pasting is disabled during a match');
-  };
-
-  // Prevent right click
-  const handleContextMenu = (e) => {
-    e.preventDefault();
-  };
-
-  // Prevent common keyboard shortcuts for cheating
-  const handleKeyDown = (e) => {
-    // Block Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+A (select all to copy)
-    if (e.ctrlKey && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
-      e.preventDefault();
-      toast.error('Copy/paste shortcuts are disabled');
-    }
-    // Block F12 (DevTools)
-    if (e.key === 'F12') {
-      e.preventDefault();
-    }
-    // Block Ctrl+Shift+I (DevTools)
-    if (e.ctrlKey && e.shiftKey && e.key === 'I') {
-      e.preventDefault();
-    }
-  };
-
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  document.addEventListener('copy', handleCopy);
-  document.addEventListener('paste', handlePaste);
-  document.addEventListener('contextmenu', handleContextMenu);
-  document.addEventListener('keydown', handleKeyDown);
-
-  return () => {
-    document.removeEventListener('visibilitychange', handleVisibilityChange);
-    document.removeEventListener('copy', handleCopy);
-    document.removeEventListener('paste', handlePaste);
-    document.removeEventListener('contextmenu', handleContextMenu);
-    document.removeEventListener('keydown', handleKeyDown);
-
-    // Exit fullscreen when leaving match
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
-  };
-}, [match?.matchId, submitted]);
-
-
+  // Anti-cheat setup
   useEffect(() => {
+    if (!ready || !match) return;
+
+    // Track fullscreen state
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+
+    // Tab switch detection
+    const handleVisibilityChange = () => {
+      if (document.hidden && !submitted && !forfeitedRef.current) {
+        warningRef.current += 1;
+        if (warningRef.current >= 2) {
+          forfeitedRef.current = true;
+          const socket = connectSocket();
+          if (socket) {
+            socket.emit('match:forfeit_request', {
+              matchId: match.matchId,
+              reason: 'tab_switch',
+            });
+          }
+          toast.error('Match forfeited — tab switching detected twice', { duration: 5000 });
+        } else {
+          toast.error(`⚠️ Warning ${warningRef.current}/2: Do not leave this tab!`, { duration: 5000 });
+        }
+      }
+    };
+
+    // Block copy everywhere on the page
+    const handleCopy = (e) => {
+      e.preventDefault();
+      toast.error('Copying is disabled during a match');
+    };
+
+    // Block paste everywhere except inside Monaco (Monaco handles its own paste)
+    const handlePaste = (e) => {
+      // Check if the paste target is inside the Monaco editor container
+      const monacoContainer = document.querySelector('.monaco-editor');
+      if (monacoContainer && monacoContainer.contains(e.target)) {
+        e.preventDefault();
+        toast.error('Pasting is disabled during a match');
+        return;
+      }
+      e.preventDefault();
+    };
+
+    const handleContextMenu = (e) => e.preventDefault();
+
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && ['c', 'v', 'x'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+        toast.error('Copy/paste shortcuts are disabled');
+      }
+      if (e.key === 'F12') e.preventDefault();
+      if (e.ctrlKey && e.shiftKey && ['i', 'j'].includes(e.key.toLowerCase())) e.preventDefault();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.addEventListener('copy',             handleCopy);
+    document.addEventListener('paste',            handlePaste);
+    document.addEventListener('contextmenu',      handleContextMenu);
+    document.addEventListener('keydown',          handleKeyDown);
+
+    return () => {
+      document.removeEventListener('fullscreenchange',  onFullscreenChange);
+      document.removeEventListener('visibilitychange',  handleVisibilityChange);
+      document.removeEventListener('copy',              handleCopy);
+      document.removeEventListener('paste',             handlePaste);
+      document.removeEventListener('contextmenu',       handleContextMenu);
+      document.removeEventListener('keydown',           handleKeyDown);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, [ready, match?.matchId, submitted]);
+
+  // Socket setup
+  useEffect(() => {
+    if (!ready) return;
     if (!match) { router.push('/lobby'); return; }
 
     const socket = connectSocket();
+    if (!socket) return;
+
     socket.emit('match:join', { matchId: match.matchId });
 
     socket.on('match:timer_sync', (data) => {
@@ -157,9 +144,7 @@ useEffect(() => {
 
     socket.on('match:opponent_status', (data) => {
       setOpponentStatus(data.status);
-      if (data.status === 'submitted') {
-        toast('Opponent submitted!', { icon: '⚡' });
-      }
+      if (data.status === 'submitted') toast('Opponent submitted!', { icon: '⚡' });
     });
 
     socket.on('match:submission_received', () => {
@@ -175,13 +160,9 @@ useEffect(() => {
     socket.on('match:evaluation_result', (data) => {
       setEvaluating(false);
       setEvalResult(data);
-      if (data.score === 100) {
-        toast.success(`All ${data.total} test cases passed!`);
-      } else if (data.score > 0) {
-        toast(`${data.passed}/${data.total} test cases passed`, { icon: '⚠️' });
-      } else {
-        toast.error(data.compileError ? 'Runtime error' : 'Wrong answer');
-      }
+      if (data.score === 100)      toast.success(`All ${data.total} test cases passed!`);
+      else if (data.score > 0)     toast(`${data.passed}/${data.total} passed`, { icon: '⚠️' });
+      else                         toast.error(data.compileError ? 'Runtime error' : 'Wrong answer');
     });
 
     socket.on('match:run_started', () => {
@@ -198,7 +179,7 @@ useEffect(() => {
     });
 
     socket.on('match:waiting_opponent', () => {
-      toast('Waiting for opponent to submit...', { icon: '⏳' });
+      toast('Waiting for opponent...', { icon: '⏳' });
     });
 
     socket.on('match:result', (data) => {
@@ -221,7 +202,6 @@ useEffect(() => {
       setRunning(false);
     });
 
-    // Sync timer from server timestamp
     if (timer) {
       const remaining = Math.floor((timer.endTs - Date.now()) / 1000);
       setTimeLeft(Math.max(0, remaining));
@@ -241,9 +221,9 @@ useEffect(() => {
       socket.off('match:time_up');
       socket.off('match:error');
     };
-  }, []);
+  }, [ready]);
 
-  // Client-side countdown
+  // Client countdown
   useEffect(() => {
     if (timeLeft === null) return;
     clearInterval(timerRef.current);
@@ -263,7 +243,7 @@ useEffect(() => {
 
   const getTimerColor = () => {
     if (timeLeft === null) return '#8888aa';
-    if (timeLeft < 60) return '#ef4444';
+    if (timeLeft < 60)  return '#ef4444';
     if (timeLeft < 300) return '#f59e0b';
     return '#10b981';
   };
@@ -274,33 +254,80 @@ useEffect(() => {
     setCode(DEFAULT_CODE[lang]);
   };
 
-  // Run against public test cases only — does NOT lock submission
+  const handleEnterFullscreen = async () => {
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      toast.error('Fullscreen not available in your browser');
+    }
+  };
+
   const handleRun = () => {
     if (!code.trim()) { toast.error('Write some code first'); return; }
     if (timeLeft === 0) { toast.error("Time's up"); return; }
     const socket = connectSocket();
-    socket.emit('code:run', { matchId: match.matchId, language, code });
+    if (socket) socket.emit('code:run', { matchId: match.matchId, language, code });
   };
 
-  // Submit against ALL test cases — locks answer
   const handleSubmit = () => {
     if (submitted) { toast.error('Already submitted'); return; }
     if (!code.trim()) { toast.error('Write some code first'); return; }
     if (timeLeft === 0) { toast.error("Time's up"); return; }
     const socket = connectSocket();
-    socket.emit('code:submit', { matchId: match.matchId, language, code });
+    if (socket) socket.emit('code:submit', { matchId: match.matchId, language, code });
     setSubmitted(true);
     setEvaluating(true);
     setActiveTab('result');
   };
 
-  if (!match) return null;
+  // Monaco paste blocker — runs after editor mounts
+  const handleEditorDidMount = (editor) => {
+    editorRef.current = editor;
+    // Override Monaco's paste command
+    editor.addCommand(
+      monaco => monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV,
+      () => {
+        toast.error('Pasting is disabled during a match');
+      }
+    );
+  };
+
+  if (!ready || !match) return null;
 
   return (
     <div style={{
       height: '100vh', display: 'flex', flexDirection: 'column',
       background: '#0a0a0f', overflow: 'hidden',
     }}>
+      {/* Fullscreen prompt banner — shows until fullscreen is entered */}
+      {!isFullscreen && (
+        <div style={{
+          background: 'rgba(124,58,237,0.15)',
+          border: '1px solid rgba(124,58,237,0.4)',
+          padding: '8px 20px',
+          display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '13px', color: '#8b5cf6',
+          flexShrink: 0,
+        }}>
+          <span>🔒 For a fair match, please enter fullscreen mode</span>
+          <button
+            onClick={handleEnterFullscreen}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '4px 12px', borderRadius: '6px',
+              background: '#7c3aed', color: '#fff',
+              border: 'none', cursor: 'pointer', fontSize: '12px',
+              fontWeight: 600,
+            }}
+          >
+            <Maximize size={13}/> Enter Fullscreen
+          </button>
+        </div>
+      )}
+
       {/* Top bar */}
       <div style={{
         height: '56px', background: '#111118',
@@ -352,27 +379,16 @@ useEffect(() => {
             <span style={{ fontSize: '13px' }}>{opponent?.username}</span>
             <div style={{
               width: 32, height: 32, borderRadius: '50%',
-              background: opponentStatus === 'connected'
-                ? 'rgba(16,185,129,0.2)' : 'rgba(85,85,106,0.2)',
+              background: opponentStatus === 'connected' ? 'rgba(16,185,129,0.2)' : 'rgba(85,85,106,0.2)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: `2px solid ${
-                opponentStatus === 'submitted' ? '#f59e0b'
-                : opponentStatus === 'connected' ? '#10b981'
-                : '#55556a'
-              }`,
+              border: `2px solid ${opponentStatus === 'submitted' ? '#f59e0b' : opponentStatus === 'connected' ? '#10b981' : '#55556a'}`,
               fontSize: '12px', fontWeight: 700,
               color: opponentStatus === 'connected' ? '#10b981' : '#8888aa',
             }}>
               {opponent?.username?.[0]?.toUpperCase()}
             </div>
-            <Badge variant={
-              opponentStatus === 'submitted' ? 'warning'
-              : opponentStatus === 'connected' ? 'success'
-              : 'default'
-            }>
-              {opponentStatus === 'submitted' ? 'Submitted'
-               : opponentStatus === 'connected' ? 'Coding'
-               : 'Waiting'}
+            <Badge variant={opponentStatus === 'submitted' ? 'warning' : opponentStatus === 'connected' ? 'success' : 'default'}>
+              {opponentStatus === 'submitted' ? 'Submitted' : opponentStatus === 'connected' ? 'Coding' : 'Waiting'}
             </Badge>
           </div>
         </div>
@@ -399,15 +415,11 @@ useEffect(() => {
           width: '40%', borderRight: '1px solid #2a2a3a',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
-          {/* Tabs */}
-          <div style={{
-            display: 'flex', borderBottom: '1px solid #2a2a3a',
-            background: '#111118',
-          }}>
+          <div style={{ display: 'flex', borderBottom: '1px solid #2a2a3a', background: '#111118' }}>
             {[
-              { id: 'problem', label: 'Problem' },
-              { id: 'testcases', label: 'Test Cases' },
-              { id: 'result', label: 'Result' },
+              { id: 'problem',   label: 'Problem'    },
+              { id: 'testcases', label: 'Test Cases'  },
+              { id: 'result',    label: 'Result'      },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -434,19 +446,14 @@ useEffect(() => {
 
           <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
 
-            {/* Problem tab */}
             {activeTab === 'problem' && problem && (
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                  <h2 style={{ fontSize: '20px', fontWeight: 700 }}>{problem.title}</h2>
-                </div>
-                <p style={{
-                  color: '#c0c0d0', lineHeight: 1.8, fontSize: '14px',
-                  whiteSpace: 'pre-wrap',
-                }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>
+                  {problem.title}
+                </h2>
+                <p style={{ color: '#c0c0d0', lineHeight: 1.8, fontSize: '14px', whiteSpace: 'pre-wrap' }}>
                   {problem.description}
                 </p>
-
                 {problem.testCases?.filter(tc => tc.is_public).length > 0 && (
                   <div style={{ marginTop: '24px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#8888aa' }}>
@@ -476,20 +483,18 @@ useEffect(() => {
                     ))}
                   </div>
                 )}
-
                 <div style={{
                   marginTop: '20px', padding: '12px 16px',
                   background: 'rgba(124,58,237,0.08)',
                   border: '1px solid rgba(124,58,237,0.2)',
                   borderRadius: '8px', fontSize: '13px', color: '#8888aa',
                 }}>
-                  💡 Click <strong style={{ color: '#8b5cf6' }}>Run</strong> to test against sample cases.
-                  Click <strong style={{ color: '#10b981' }}>Submit</strong> to evaluate against all hidden test cases and lock your answer.
+                  💡 <strong style={{ color: '#8b5cf6' }}>Run</strong> tests your code on sample cases.{' '}
+                  <strong style={{ color: '#10b981' }}>Submit</strong> runs all hidden test cases and locks your answer.
                 </div>
               </div>
             )}
 
-            {/* Test cases tab — shows Run results */}
             {activeTab === 'testcases' && (
               <div>
                 {running && (
@@ -506,68 +511,45 @@ useEffect(() => {
                     </div>
                   </div>
                 )}
-
                 {!running && !runResults && (
                   <div style={{ textAlign: 'center', padding: '40px 0', color: '#55556a', fontSize: '14px' }}>
                     Click <strong style={{ color: '#8b5cf6' }}>Run</strong> to test against sample cases
                   </div>
                 )}
-
                 {!running && runResults && (
                   <div>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      marginBottom: '16px',
-                    }}>
-                      <span style={{ fontSize: '14px', fontWeight: 600 }}>
-                        Sample test results
-                      </span>
-                      <Badge variant={
-                        runResults.passedCount === runResults.totalCount ? 'success' : 'warning'
-                      }>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 600 }}>Sample test results</span>
+                      <Badge variant={runResults.passedCount === runResults.totalCount ? 'success' : 'warning'}>
                         {runResults.passedCount}/{runResults.totalCount} passed
                       </Badge>
                     </div>
-
                     {runResults.results.map((r, i) => (
                       <div key={i} style={{
                         background: '#0a0a0f',
                         border: `1px solid ${r.passed ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
                         borderRadius: '8px', padding: '14px', marginBottom: '10px',
                       }}>
-                        <div style={{
-                          display: 'flex', justifyContent: 'space-between',
-                          alignItems: 'center', marginBottom: '10px',
-                        }}>
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>
-                            Test Case {r.index}
-                          </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 500 }}>Test Case {r.index}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {r.timeMs > 0 && (
-                              <span style={{ fontSize: '11px', color: '#55556a' }}>{r.timeMs}ms</span>
-                            )}
+                            {r.timeMs > 0 && <span style={{ fontSize: '11px', color: '#55556a' }}>{r.timeMs}ms</span>}
                             <Badge variant={r.passed ? 'success' : 'danger'}>
                               {r.passed ? '✓ Passed' : '✗ Failed'}
                             </Badge>
                           </div>
                         </div>
-
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                           <div>
                             <div style={{ fontSize: '11px', color: '#55556a', marginBottom: '4px' }}>Input</div>
-                            <pre style={{ fontSize: '12px', color: '#c0c0d0', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                              {r.input}
-                            </pre>
+                            <pre style={{ fontSize: '12px', color: '#c0c0d0', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.input}</pre>
                           </div>
                           <div>
                             <div style={{ fontSize: '11px', color: '#55556a', marginBottom: '4px' }}>Expected</div>
-                            <pre style={{ fontSize: '12px', color: '#8b5cf6', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                              {r.expected}
-                            </pre>
+                            <pre style={{ fontSize: '12px', color: '#8b5cf6', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.expected}</pre>
                           </div>
                         </div>
-
-                        {!r.passed && r.actual !== undefined && (
+                        {!r.passed && (
                           <div style={{ marginTop: '8px' }}>
                             <div style={{ fontSize: '11px', color: '#ef4444', marginBottom: '4px' }}>Your output</div>
                             <pre style={{ fontSize: '12px', color: '#ef4444', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
@@ -575,7 +557,6 @@ useEffect(() => {
                             </pre>
                           </div>
                         )}
-
                         {r.error && (
                           <div style={{ marginTop: '8px' }}>
                             <div style={{ fontSize: '11px', color: '#f59e0b', marginBottom: '4px' }}>Error</div>
@@ -591,7 +572,6 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Result tab — shows Submit results */}
             {activeTab === 'result' && (
               <div>
                 {evaluating && (
@@ -611,7 +591,6 @@ useEffect(() => {
                     </div>
                   </div>
                 )}
-
                 {evalResult && !evaluating && (
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                     <div style={{ textAlign: 'center', padding: '24px 0 20px', borderBottom: '1px solid #2a2a3a', marginBottom: '20px' }}>
@@ -629,37 +608,24 @@ useEffect(() => {
                         {evalResult.passed}/{evalResult.total} test cases passed
                       </div>
                       <div style={{ marginTop: '8px' }}>
-                        <Badge variant={
-                          evalResult.status === 'ACCEPTED' ? 'success'
-                          : evalResult.status === 'PARTIAL' ? 'warning'
-                          : 'danger'
-                        }>
+                        <Badge variant={evalResult.status === 'ACCEPTED' ? 'success' : evalResult.status === 'PARTIAL' ? 'warning' : 'danger'}>
                           {evalResult.status}
                         </Badge>
                       </div>
                     </div>
-
                     {evalResult.compileError && (
                       <div style={{
                         background: 'rgba(239,68,68,0.08)',
                         border: '1px solid rgba(239,68,68,0.2)',
-                        borderRadius: '8px', padding: '12px',
-                        marginBottom: '16px',
+                        borderRadius: '8px', padding: '12px', marginBottom: '16px',
                       }}>
-                        <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px', fontWeight: 600 }}>
-                          Runtime Error
-                        </div>
+                        <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px', fontWeight: 600 }}>Runtime Error</div>
                         <pre style={{ fontSize: '12px', color: '#f87171', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                           {evalResult.compileError.slice(0, 300)}
                         </pre>
                       </div>
                     )}
-
-                    <div style={{
-                      padding: '14px', background: '#0a0a0f',
-                      borderRadius: '8px', fontSize: '14px', color: '#8888aa',
-                      textAlign: 'center',
-                    }}>
+                    <div style={{ padding: '14px', background: '#0a0a0f', borderRadius: '8px', fontSize: '14px', color: '#8888aa', textAlign: 'center' }}>
                       {evalResult.message}
                       <br/>
                       <span style={{ fontSize: '12px', color: '#55556a', marginTop: '4px', display: 'block' }}>
@@ -668,7 +634,6 @@ useEffect(() => {
                     </div>
                   </motion.div>
                 )}
-
                 {!evaluating && !evalResult && (
                   <div style={{ textAlign: 'center', padding: '40px 0', color: '#55556a', fontSize: '14px' }}>
                     Click <strong style={{ color: '#10b981' }}>Submit</strong> to evaluate against all test cases
@@ -681,13 +646,11 @@ useEffect(() => {
 
         {/* Right: Editor */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Editor toolbar */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '8px 16px', background: '#111118',
             borderBottom: '1px solid #2a2a3a',
           }}>
-            {/* Language selector */}
             <div style={{ display: 'flex', gap: '6px' }}>
               {LANGUAGES.map(lang => (
                 <button
@@ -695,12 +658,11 @@ useEffect(() => {
                   onClick={() => handleLanguageChange(lang.id)}
                   disabled={submitted}
                   style={{
-                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px',
-                    fontWeight: 500, transition: 'all 0.15s',
+                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
                     background: language === lang.id ? 'rgba(124,58,237,0.2)' : 'transparent',
                     color: language === lang.id ? '#8b5cf6' : '#55556a',
                     border: `1px solid ${language === lang.id ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
-                    cursor: submitted ? 'not-allowed' : 'pointer',
+                    cursor: submitted ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                   }}
                 >
                   {lang.label}
@@ -708,62 +670,37 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Action buttons */}
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {/* Run button — always available until time runs out */}
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={handleRun}
-                loading={running}
-                disabled={submitted || timeLeft === 0}
-              >
-                <Play size={13}/>
-                Run
+              <Button variant="secondary" size="sm" onClick={handleRun} loading={running} disabled={submitted || timeLeft === 0}>
+                <Play size={13}/> Run
               </Button>
-
-              {/* Submit button — locks answer */}
               <AnimatePresence>
                 {!submitted ? (
                   <motion.div key="submit" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <Button
-                      variant="success"
-                      size="sm"
-                      onClick={handleSubmit}
-                      loading={evaluating}
-                      disabled={timeLeft === 0}
-                    >
-                      <Zap size={13} fill="currentColor"/>
-                      Submit
+                    <Button variant="success" size="sm" onClick={handleSubmit} loading={evaluating} disabled={timeLeft === 0}>
+                      <Zap size={13} fill="currentColor"/> Submit
                     </Button>
                   </motion.div>
                 ) : (
                   <motion.div
-                    key="submitted"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '6px',
-                      color: '#10b981', fontSize: '13px', fontWeight: 500,
-                      padding: '5px 10px',
-                    }}
+                    key="submitted" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '13px', fontWeight: 500, padding: '5px 10px' }}
                   >
-                    <CheckCircle size={14}/>
-                    Submitted
+                    <CheckCircle size={14}/> Submitted
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           </div>
 
-          {/* Monaco Editor */}
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <Editor
               height="100%"
-              language={language === 'cpp' ? 'cpp' : language}
+              language={language}
               value={code}
               onChange={(val) => !submitted && setCode(val || '')}
               theme="vs-dark"
+              onMount={handleEditorDidMount}
               options={{
                 fontSize: 14,
                 minimap: { enabled: false },
@@ -771,12 +708,14 @@ useEffect(() => {
                 padding: { top: 16 },
                 lineNumbers: 'on',
                 renderLineHighlight: 'all',
-                suggestOnTriggerCharacters: true,
                 tabSize: 2,
                 wordWrap: 'on',
                 automaticLayout: true,
                 readOnly: submitted,
                 cursorBlinking: 'smooth',
+                contextmenu: false,
+                // Disable paste via Monaco options
+                find: { autoFindInSelection: 'never' },
               }}
             />
           </div>

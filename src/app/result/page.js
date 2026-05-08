@@ -11,9 +11,9 @@ import Link from 'next/link';
 
 export default function ResultPage() {
   const { result, match, opponent, clearMatch } = useMatchStore();
-  const { user } = useAuthStore();
-  const { updateBalance } = useWalletStore();
-  const router = useRouter();
+  const { user }           = useAuthStore();
+  const { updateBalance }  = useWalletStore();
+  const router             = useRouter();
 
   const isWinner = result?.winnerId === user?.id;
 
@@ -25,8 +25,8 @@ export default function ResultPage() {
   }, []);
 
   const handlePlayAgain = () => {
-    clearMatch();
-    router.push('/lobby');
+    clearMatch();          // clears match, opponent, problem, result
+    router.push('/lobby'); // lobby resets category to 'all' on mount
   };
 
   if (!result) return null;
@@ -40,7 +40,7 @@ export default function ResultPage() {
       {/* Background glow */}
       <div style={{
         position: 'absolute', top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
+        transform: 'translate(-50%,-50%)',
         width: '600px', height: '600px',
         background: isWinner
           ? 'radial-gradient(ellipse, rgba(251,191,36,0.08) 0%, transparent 70%)'
@@ -62,8 +62,8 @@ export default function ResultPage() {
           style={{
             width: 100, height: 100, borderRadius: '50%',
             background: isWinner
-              ? 'linear-gradient(135deg, rgba(251,191,36,0.2), rgba(245,158,11,0.1))'
-              : 'linear-gradient(135deg, rgba(239,68,68,0.2), rgba(220,38,38,0.1))',
+              ? 'linear-gradient(135deg,rgba(251,191,36,0.2),rgba(245,158,11,0.1))'
+              : 'linear-gradient(135deg,rgba(239,68,68,0.2),rgba(220,38,38,0.1))',
             border: `2px solid ${isWinner ? '#fbbf24' : '#ef4444'}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             margin: '0 auto 24px',
@@ -75,7 +75,6 @@ export default function ResultPage() {
           }
         </motion.div>
 
-        {/* Result title */}
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <h1 style={{
             fontSize: '48px', fontWeight: 800,
@@ -88,7 +87,7 @@ export default function ResultPage() {
             {result.resolveType === 'FORFEIT'
               ? isWinner ? 'Your opponent disconnected' : 'You were disconnected'
               : result.resolveType === 'TIME_UP'
-              ? "Time ran out — scores compared"
+              ? 'Time ran out — scores compared'
               : isWinner
               ? 'Faster correct solution wins the prize'
               : 'Better luck next time'}
@@ -103,45 +102,40 @@ export default function ResultPage() {
           style={{
             background: '#111118',
             border: `1px solid ${isWinner ? 'rgba(251,191,36,0.3)' : '#2a2a3a'}`,
-            borderRadius: '16px',
-            padding: '24px',
-            marginBottom: '24px',
+            borderRadius: '16px', padding: '24px', marginBottom: '24px',
           }}
         >
           {isWinner && (
-            <div style={{
-              fontSize: '36px', fontWeight: 800,
-              color: '#fbbf24', marginBottom: '4px',
-            }}>
+            <div style={{ fontSize: '36px', fontWeight: 800, color: '#fbbf24', marginBottom: '4px' }}>
               +₹{result.netPrize}
             </div>
           )}
 
           <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr',
-            gap: '16px', marginTop: isWinner ? '16px' : '0',
+            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px',
+            marginTop: isWinner ? '16px' : '0',
             paddingTop: isWinner ? '16px' : '0',
             borderTop: isWinner ? '1px solid #2a2a3a' : 'none',
           }}>
             <div style={{ textAlign: 'center', padding: '12px', background: '#0a0a0f', borderRadius: '8px' }}>
               <div style={{ fontSize: '11px', color: '#55556a', marginBottom: '6px' }}>YOUR SCORE</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#f0f0f5' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700 }}>
                 {result.scores?.[user?.id] ?? '--'}%
               </div>
               <div style={{ fontSize: '12px', color: '#8888aa', marginTop: '4px' }}>
                 {result.times?.[user?.id] ? `${(result.times[user.id] / 1000).toFixed(1)}s` : '—'}
               </div>
             </div>
-
             <div style={{ textAlign: 'center', padding: '12px', background: '#0a0a0f', borderRadius: '8px' }}>
               <div style={{ fontSize: '11px', color: '#55556a', marginBottom: '6px' }}>OPPONENT</div>
               <div style={{ fontSize: '24px', fontWeight: 700, color: '#8888aa' }}>
                 {result.scores?.[result.loserId === user?.id ? result.winnerId : result.loserId] ?? '--'}%
               </div>
               <div style={{ fontSize: '12px', color: '#55556a', marginTop: '4px' }}>
-                {result.times?.[result.loserId === user?.id ? result.winnerId : result.loserId]
-                  ? `${(result.times[result.loserId === user?.id ? result.winnerId : result.loserId] / 1000).toFixed(1)}s`
-                  : '—'}
+                {(() => {
+                  const oppId = result.loserId === user?.id ? result.winnerId : result.loserId;
+                  return result.times?.[oppId] ? `${(result.times[oppId] / 1000).toFixed(1)}s` : '—';
+                })()}
               </div>
             </div>
           </div>
@@ -165,13 +159,11 @@ export default function ResultPage() {
           style={{ display: 'flex', gap: '12px' }}
         >
           <Button variant="secondary" size="lg" style={{ flex: 1 }} onClick={handlePlayAgain}>
-            <RotateCcw size={16}/>
-            Play again
+            <RotateCcw size={16}/> Play again
           </Button>
           <Link href="/" style={{ flex: 1 }}>
             <Button variant="ghost" size="lg" fullWidth>
-              <Home size={16}/>
-              Home
+              <Home size={16}/> Home
             </Button>
           </Link>
         </motion.div>
