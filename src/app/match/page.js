@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Editor from '@monaco-editor/react';
-import { Clock, Zap, CheckCircle, AlertCircle, Loader, Play, Maximize } from 'lucide-react';
+import { Clock, Zap, CheckCircle, AlertCircle, Loader, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useMatchStore } from '@/store/matchStore';
 import { useAuthStore } from '@/store/authStore';
@@ -32,35 +32,27 @@ export default function MatchPage() {
     match, opponent, problem, timer,
     opponentStatus, setOpponentStatus, setResult,
   } = useMatchStore();
-  const { user } = useAuthStore();
-  const router   = useRouter();
+  const { user }  = useAuthStore();
+  const router    = useRouter();
 
-  const [language,    setLanguage]    = useState('javascript');
-  const [code,        setCode]        = useState(DEFAULT_CODE.javascript);
-  const [timeLeft,    setTimeLeft]    = useState(null);
-  const [submitted,   setSubmitted]   = useState(false);
-  const [running,     setRunning]     = useState(false);
-  const [evaluating,  setEvaluating]  = useState(false);
-  const [evalResult,  setEvalResult]  = useState(null);
-  const [runResults,  setRunResults]  = useState(null);
-  const [activeTab,   setActiveTab]   = useState('problem');
-  
-  const timerRef    = useRef(null);
-  const warningRef  = useRef(0);
+  const [language,   setLanguage]   = useState('javascript');
+  const [code,       setCode]       = useState(DEFAULT_CODE.javascript);
+  const [timeLeft,   setTimeLeft]   = useState(null);
+  const [submitted,  setSubmitted]  = useState(false);
+  const [running,    setRunning]    = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
+  const [evalResult, setEvalResult] = useState(null);
+  const [runResults, setRunResults] = useState(null);
+  const [activeTab,  setActiveTab]  = useState('problem');
+  const timerRef     = useRef(null);
+  const warningRef   = useRef(0);
   const forfeitedRef = useRef(false);
-  const editorRef   = useRef(null);
+  const editorRef    = useRef(null);
 
-  // Anti-cheat setup
+  // Anti-cheat
   useEffect(() => {
     if (!ready || !match) return;
 
-    // Track fullscreen state
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-
-    // Tab switch detection
     const handleVisibilityChange = () => {
       if (document.hidden && !submitted && !forfeitedRef.current) {
         warningRef.current += 1;
@@ -80,21 +72,12 @@ export default function MatchPage() {
       }
     };
 
-    // Block copy everywhere on the page
     const handleCopy = (e) => {
       e.preventDefault();
       toast.error('Copying is disabled during a match');
     };
 
-    // Block paste everywhere except inside Monaco (Monaco handles its own paste)
     const handlePaste = (e) => {
-      // Check if the paste target is inside the Monaco editor container
-      const monacoContainer = document.querySelector('.monaco-editor');
-      if (monacoContainer && monacoContainer.contains(e.target)) {
-        e.preventDefault();
-        toast.error('Pasting is disabled during a match');
-        return;
-      }
       e.preventDefault();
     };
 
@@ -106,7 +89,9 @@ export default function MatchPage() {
         toast.error('Copy/paste shortcuts are disabled');
       }
       if (e.key === 'F12') e.preventDefault();
-      if (e.ctrlKey && e.shiftKey && ['i', 'j'].includes(e.key.toLowerCase())) e.preventDefault();
+      if (e.ctrlKey && e.shiftKey && ['i', 'j'].includes(e.key.toLowerCase())) {
+        e.preventDefault();
+      }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -116,19 +101,18 @@ export default function MatchPage() {
     document.addEventListener('keydown',          handleKeyDown);
 
     return () => {
-      document.removeEventListener('fullscreenchange',  onFullscreenChange);
-      document.removeEventListener('visibilitychange',  handleVisibilityChange);
-      document.removeEventListener('copy',              handleCopy);
-      document.removeEventListener('paste',             handlePaste);
-      document.removeEventListener('contextmenu',       handleContextMenu);
-      document.removeEventListener('keydown',           handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('copy',             handleCopy);
+      document.removeEventListener('paste',            handlePaste);
+      document.removeEventListener('contextmenu',      handleContextMenu);
+      document.removeEventListener('keydown',          handleKeyDown);
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
     };
   }, [ready, match?.matchId, submitted]);
 
-  // Socket setup
+  // Socket
   useEffect(() => {
     if (!ready) return;
     if (!match) { router.push('/lobby'); return; }
@@ -160,9 +144,9 @@ export default function MatchPage() {
     socket.on('match:evaluation_result', (data) => {
       setEvaluating(false);
       setEvalResult(data);
-      if (data.score === 100)      toast.success(`All ${data.total} test cases passed!`);
-      else if (data.score > 0)     toast(`${data.passed}/${data.total} passed`, { icon: '⚠️' });
-      else                         toast.error(data.compileError ? 'Runtime error' : 'Wrong answer');
+      if (data.score === 100)     toast.success(`All ${data.total} test cases passed!`);
+      else if (data.score > 0)    toast(`${data.passed}/${data.total} passed`, { icon: '⚠️' });
+      else                        toast.error(data.compileError ? 'Runtime error' : 'Wrong answer');
     });
 
     socket.on('match:run_started', () => {
@@ -223,7 +207,7 @@ export default function MatchPage() {
     };
   }, [ready]);
 
-  // Client countdown
+  // Countdown
   useEffect(() => {
     if (timeLeft === null) return;
     clearInterval(timerRef.current);
@@ -254,8 +238,6 @@ export default function MatchPage() {
     setCode(DEFAULT_CODE[lang]);
   };
 
-  
-
   const handleRun = () => {
     if (!code.trim()) { toast.error('Write some code first'); return; }
     if (timeLeft === 0) { toast.error("Time's up"); return; }
@@ -274,15 +256,11 @@ export default function MatchPage() {
     setActiveTab('result');
   };
 
-  // Monaco paste blocker — runs after editor mounts
-  const handleEditorDidMount = (editor) => {
+  const handleEditorMount = (editor, monacoInstance) => {
     editorRef.current = editor;
-    // Override Monaco's paste command
     editor.addCommand(
-      monaco => monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV,
-      () => {
-        toast.error('Pasting is disabled during a match');
-      }
+      monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyV,
+      () => toast.error('Pasting is disabled during a match')
     );
   };
 
@@ -293,9 +271,6 @@ export default function MatchPage() {
       height: '100vh', display: 'flex', flexDirection: 'column',
       background: '#0a0a0f', overflow: 'hidden',
     }}>
-      
-      
-
       {/* Top bar */}
       <div style={{
         height: '56px', background: '#111118',
@@ -304,9 +279,8 @@ export default function MatchPage() {
         justifyContent: 'space-between',
         padding: '0 20px', flexShrink: 0, gap: '16px',
       }}>
-        {/* Timer */}
         <motion.div
-          animate={{ scale: timeLeft !== null && timeLeft < 60 ? [1, 1.05, 1] : 1 }}
+          animate={{ scale: timeLeft !== null && timeLeft < 60 ? [1,1.05,1] : 1 }}
           transition={{ duration: 0.5, repeat: timeLeft !== null && timeLeft < 60 ? Infinity : 0 }}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -325,7 +299,6 @@ export default function MatchPage() {
           </span>
         </motion.div>
 
-        {/* Players */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{
@@ -340,9 +313,7 @@ export default function MatchPage() {
             <span style={{ fontSize: '13px' }}>{user?.username}</span>
             {submitted && <Badge variant="success">Submitted</Badge>}
           </div>
-
           <span style={{ color: '#55556a', fontSize: '12px' }}>VS</span>
-
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontSize: '13px' }}>{opponent?.username}</span>
             <div style={{
@@ -361,7 +332,6 @@ export default function MatchPage() {
           </div>
         </div>
 
-        {/* Prize */}
         <div style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           background: 'rgba(16,185,129,0.1)',
@@ -375,10 +345,10 @@ export default function MatchPage() {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Content */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-        {/* Left: Problem panel */}
+        {/* Left panel */}
         <div style={{
           width: '40%', borderRight: '1px solid #2a2a3a',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -413,39 +383,28 @@ export default function MatchPage() {
           </div>
 
           <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
-
             {activeTab === 'problem' && problem && (
               <div>
-                <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>
-                  {problem.title}
-                </h2>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>{problem.title}</h2>
                 <p style={{ color: '#c0c0d0', lineHeight: 1.8, fontSize: '14px', whiteSpace: 'pre-wrap' }}>
                   {problem.description}
                 </p>
                 {problem.testCases?.filter(tc => tc.is_public).length > 0 && (
                   <div style={{ marginTop: '24px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#8888aa' }}>
-                      EXAMPLES
-                    </div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#8888aa' }}>EXAMPLES</div>
                     {problem.testCases.filter(tc => tc.is_public).map((tc, i) => (
                       <div key={i} style={{
                         background: '#0a0a0f', border: '1px solid #2a2a3a',
                         borderRadius: '8px', padding: '14px', marginBottom: '10px',
                       }}>
-                        <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px' }}>
-                          Example {i + 1}
-                        </div>
+                        <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px' }}>Example {i + 1}</div>
                         <div style={{ marginBottom: '8px' }}>
                           <div style={{ fontSize: '11px', color: '#8888aa', marginBottom: '4px' }}>Input</div>
-                          <pre style={{ fontSize: '13px', color: '#10b981', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                            {tc.input}
-                          </pre>
+                          <pre style={{ fontSize: '13px', color: '#10b981', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{tc.input}</pre>
                         </div>
                         <div>
                           <div style={{ fontSize: '11px', color: '#8888aa', marginBottom: '4px' }}>Expected Output</div>
-                          <pre style={{ fontSize: '13px', color: '#8b5cf6', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                            {tc.expected_output}
-                          </pre>
+                          <pre style={{ fontSize: '13px', color: '#8b5cf6', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{tc.expected_output}</pre>
                         </div>
                       </div>
                     ))}
@@ -457,7 +416,7 @@ export default function MatchPage() {
                   border: '1px solid rgba(124,58,237,0.2)',
                   borderRadius: '8px', fontSize: '13px', color: '#8888aa',
                 }}>
-                  💡 <strong style={{ color: '#8b5cf6' }}>Run</strong> tests your code on sample cases.{' '}
+                  💡 <strong style={{ color: '#8b5cf6' }}>Run</strong> tests sample cases.{' '}
                   <strong style={{ color: '#10b981' }}>Submit</strong> runs all hidden test cases and locks your answer.
                 </div>
               </div>
@@ -467,16 +426,10 @@ export default function MatchPage() {
               <div>
                 {running && (
                   <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      style={{ display: 'inline-block', marginBottom: '12px' }}
-                    >
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'inline-block', marginBottom: '12px' }}>
                       <Loader size={28} color="#7c3aed"/>
                     </motion.div>
-                    <div style={{ color: '#8888aa', fontSize: '14px' }}>
-                      Running against sample test cases...
-                    </div>
+                    <div style={{ color: '#8888aa', fontSize: '14px' }}>Running sample test cases...</div>
                   </div>
                 )}
                 {!running && !runResults && (
@@ -499,12 +452,10 @@ export default function MatchPage() {
                         borderRadius: '8px', padding: '14px', marginBottom: '10px',
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 500 }}>Test Case {r.index}</span>
+                          <span style={{ fontSize: '13px', fontWeight: 500 }}>Test {r.index}</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             {r.timeMs > 0 && <span style={{ fontSize: '11px', color: '#55556a' }}>{r.timeMs}ms</span>}
-                            <Badge variant={r.passed ? 'success' : 'danger'}>
-                              {r.passed ? '✓ Passed' : '✗ Failed'}
-                            </Badge>
+                            <Badge variant={r.passed ? 'success' : 'danger'}>{r.passed ? '✓ Passed' : '✗ Failed'}</Badge>
                           </div>
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -520,17 +471,13 @@ export default function MatchPage() {
                         {!r.passed && (
                           <div style={{ marginTop: '8px' }}>
                             <div style={{ fontSize: '11px', color: '#ef4444', marginBottom: '4px' }}>Your output</div>
-                            <pre style={{ fontSize: '12px', color: '#ef4444', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                              {r.actual || '(empty)'}
-                            </pre>
+                            <pre style={{ fontSize: '12px', color: '#ef4444', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.actual || '(empty)'}</pre>
                           </div>
                         )}
                         {r.error && (
                           <div style={{ marginTop: '8px' }}>
                             <div style={{ fontSize: '11px', color: '#f59e0b', marginBottom: '4px' }}>Error</div>
-                            <pre style={{ fontSize: '12px', color: '#f59e0b', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>
-                              {r.error.slice(0, 200)}
-                            </pre>
+                            <pre style={{ fontSize: '12px', color: '#f59e0b', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.error.slice(0, 200)}</pre>
                           </div>
                         )}
                       </div>
@@ -544,19 +491,11 @@ export default function MatchPage() {
               <div>
                 {evaluating && (
                   <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                    <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                      style={{ display: 'inline-block', marginBottom: '16px' }}
-                    >
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'inline-block', marginBottom: '16px' }}>
                       <Loader size={32} color="#7c3aed"/>
                     </motion.div>
-                    <div style={{ color: '#f0f0f5', fontWeight: 500, marginBottom: '8px' }}>
-                      Evaluating your solution...
-                    </div>
-                    <div style={{ color: '#8888aa', fontSize: '13px' }}>
-                      Running against all test cases including hidden ones
-                    </div>
+                    <div style={{ color: '#f0f0f5', fontWeight: 500, marginBottom: '8px' }}>Evaluating your solution...</div>
+                    <div style={{ color: '#8888aa', fontSize: '13px' }}>Running against all hidden test cases</div>
                   </div>
                 )}
                 {evalResult && !evaluating && (
@@ -566,10 +505,7 @@ export default function MatchPage() {
                         ? <CheckCircle size={40} color="#10b981" style={{ marginBottom: '8px' }}/>
                         : <AlertCircle size={40} color="#ef4444" style={{ marginBottom: '8px' }}/>
                       }
-                      <div style={{
-                        fontSize: '40px', fontWeight: 800,
-                        color: evalResult.score === 100 ? '#10b981' : evalResult.score > 0 ? '#f59e0b' : '#ef4444',
-                      }}>
+                      <div style={{ fontSize: '40px', fontWeight: 800, color: evalResult.score === 100 ? '#10b981' : evalResult.score > 0 ? '#f59e0b' : '#ef4444' }}>
                         {evalResult.score}%
                       </div>
                       <div style={{ color: '#8888aa', fontSize: '14px', marginTop: '4px' }}>
@@ -582,23 +518,15 @@ export default function MatchPage() {
                       </div>
                     </div>
                     {evalResult.compileError && (
-                      <div style={{
-                        background: 'rgba(239,68,68,0.08)',
-                        border: '1px solid rgba(239,68,68,0.2)',
-                        borderRadius: '8px', padding: '12px', marginBottom: '16px',
-                      }}>
+                      <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
                         <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px', fontWeight: 600 }}>Runtime Error</div>
-                        <pre style={{ fontSize: '12px', color: '#f87171', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-                          {evalResult.compileError.slice(0, 300)}
-                        </pre>
+                        <pre style={{ fontSize: '12px', color: '#f87171', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{evalResult.compileError.slice(0, 300)}</pre>
                       </div>
                     )}
                     <div style={{ padding: '14px', background: '#0a0a0f', borderRadius: '8px', fontSize: '14px', color: '#8888aa', textAlign: 'center' }}>
                       {evalResult.message}
                       <br/>
-                      <span style={{ fontSize: '12px', color: '#55556a', marginTop: '4px', display: 'block' }}>
-                        Waiting for match to resolve...
-                      </span>
+                      <span style={{ fontSize: '12px', color: '#55556a', marginTop: '4px', display: 'block' }}>Waiting for match to resolve...</span>
                     </div>
                   </motion.div>
                 )}
@@ -612,12 +540,11 @@ export default function MatchPage() {
           </div>
         </div>
 
-        {/* Right: Editor */}
+        {/* Editor */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '8px 16px', background: '#111118',
-            borderBottom: '1px solid #2a2a3a',
+            padding: '8px 16px', background: '#111118', borderBottom: '1px solid #2a2a3a',
           }}>
             <div style={{ display: 'flex', gap: '6px' }}>
               {LANGUAGES.map(lang => (
@@ -637,7 +564,6 @@ export default function MatchPage() {
                 </button>
               ))}
             </div>
-
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <Button variant="secondary" size="sm" onClick={handleRun} loading={running} disabled={submitted || timeLeft === 0}>
                 <Play size={13}/> Run
@@ -650,10 +576,8 @@ export default function MatchPage() {
                     </Button>
                   </motion.div>
                 ) : (
-                  <motion.div
-                    key="submitted" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '13px', fontWeight: 500, padding: '5px 10px' }}
-                  >
+                  <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#10b981', fontSize: '13px', fontWeight: 500, padding: '5px 10px' }}>
                     <CheckCircle size={14}/> Submitted
                   </motion.div>
                 )}
@@ -668,22 +592,19 @@ export default function MatchPage() {
               value={code}
               onChange={(val) => !submitted && setCode(val || '')}
               theme="vs-dark"
-              onMount={handleEditorDidMount}
+              onMount={handleEditorMount}
               options={{
                 fontSize: 14,
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 padding: { top: 16 },
                 lineNumbers: 'on',
-                renderLineHighlight: 'all',
                 tabSize: 2,
                 wordWrap: 'on',
                 automaticLayout: true,
                 readOnly: submitted,
                 cursorBlinking: 'smooth',
                 contextmenu: false,
-                // Disable paste via Monaco options
-                find: { autoFindInSelection: 'never' },
               }}
             />
           </div>
