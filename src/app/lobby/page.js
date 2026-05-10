@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Wallet } from 'lucide-react';
+import { Zap, Wallet, Layers, Hash, Type, Calculator, GitBranch, Database } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/ui/Button';
@@ -24,17 +24,58 @@ const ENTRY_FEES = [
 ];
 
 const CATEGORIES = [
-  { id: 'all',             label: 'All'             },
-  { id: 'arrays',          label: 'Arrays'          },
-  { id: 'strings',         label: 'Strings'         },
-  { id: 'math',            label: 'Math'            },
-  { id: 'algorithms',      label: 'Algorithms'      },
-  { id: 'data-structures', label: 'Data Structures' },
+  {
+    id: 'all',
+    label: 'All Topics',
+    icon: <Layers size={18}/>,
+    color: '#8b5cf6',
+    bg: 'rgba(139,92,246,0.12)',
+    border: 'rgba(139,92,246,0.35)',
+  },
+  {
+    id: 'arrays',
+    label: 'Arrays',
+    icon: <Hash size={18}/>,
+    color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.12)',
+    border: 'rgba(59,130,246,0.35)',
+  },
+  {
+    id: 'strings',
+    label: 'Strings',
+    icon: <Type size={18}/>,
+    color: '#10b981',
+    bg: 'rgba(16,185,129,0.12)',
+    border: 'rgba(16,185,129,0.35)',
+  },
+  {
+    id: 'math',
+    label: 'Math',
+    icon: <Calculator size={18}/>,
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.12)',
+    border: 'rgba(245,158,11,0.35)',
+  },
+  {
+    id: 'algorithms',
+    label: 'Algorithms',
+    icon: <GitBranch size={18}/>,
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+    border: 'rgba(239,68,68,0.35)',
+  },
+  {
+    id: 'data-structures',
+    label: 'Data Structures',
+    icon: <Database size={18}/>,
+    color: '#ec4899',
+    bg: 'rgba(236,72,153,0.12)',
+    border: 'rgba(236,72,153,0.35)',
+  },
 ];
 
 export default function LobbyPage() {
   const ready = useRequireAuth();
-
   const [selectedFee,      setSelectedFee]      = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [inQueue,          setInQueue]          = useState(false);
@@ -48,39 +89,24 @@ export default function LobbyPage() {
 
   useEffect(() => {
     if (!ready) return;
-
-    api.get('/api/wallet')
-      .then(res => setWallet(res.data.data))
-      .catch(() => {});
+    api.get('/api/wallet').then(res => setWallet(res.data.data)).catch(() => {});
 
     const socket = connectSocket();
-    if (!socket) { toast.error('Connection failed. Please refresh.'); return; }
+    if (!socket) return;
     socketRef.current = socket;
 
-    const onQueueJoined = () => {
-      setInQueue(true);
-      toast.success('In queue — finding opponent...');
-    };
+    const onJoined  = () => { setInQueue(true); toast.success('In queue — finding opponent...'); };
+    const onError   = (d) => { toast.error(d.message); setInQueue(false); };
+    const onReady   = (d) => { setMatch(d); toast.success('Opponent found!'); router.push('/match'); };
 
-    const onQueueError = (data) => {
-      toast.error(data.message);
-      setInQueue(false);
-    };
-
-    const onMatchReady = (data) => {
-      setMatch(data);
-      toast.success('Opponent found!');
-      router.push('/match');
-    };
-
-    socket.on('queue:joined', onQueueJoined);
-    socket.on('queue:error',  onQueueError);
-    socket.on('match:ready',  onMatchReady);
+    socket.on('queue:joined', onJoined);
+    socket.on('queue:error',  onError);
+    socket.on('match:ready',  onReady);
 
     return () => {
-      socket.off('queue:joined', onQueueJoined);
-      socket.off('queue:error',  onQueueError);
-      socket.off('match:ready',  onMatchReady);
+      socket.off('queue:joined', onJoined);
+      socket.off('queue:error',  onError);
+      socket.off('match:ready',  onReady);
     };
   }, [ready]);
 
@@ -96,43 +122,27 @@ export default function LobbyPage() {
 
   const joinQueue = async () => {
     if (!selectedFee) { toast.error('Select an entry fee first'); return; }
-    if (balance < selectedFee) {
-      toast.error('Insufficient balance — add funds first');
-      router.push('/wallet');
-      return;
-    }
+    if (balance < selectedFee) { toast.error('Insufficient balance'); router.push('/wallet'); return; }
     const socket = socketRef.current;
-    if (!socket || !socket.connected) {
-      toast.error('Not connected. Please refresh.');
-      return;
-    }
-
-    // Request fullscreen HERE — this is a direct click handler so browser allows it
+    if (!socket?.connected) { toast.error('Not connected. Refresh.'); return; }
     try {
       if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
         await document.documentElement.requestFullscreen();
       }
-    } catch {
-      // Fullscreen blocked — continue anyway
-    }
-
+    } catch {}
     socket.emit('queue:join', { entryFee: selectedFee, category: selectedCategory });
   };
 
   const leaveQueue = () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     socketRef.current?.emit('queue:leave');
     setInQueue(false);
     toast('Left the queue');
   };
 
-  const formatTime = (s) =>
-    `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-
-  const difficultyVariant = (d) =>
-    d === 'Easy' ? 'success' : d === 'Medium' ? 'warning' : 'danger';
+  const formatTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  const difficultyVariant = (d) => d === 'Easy' ? 'success' : d === 'Medium' ? 'warning' : 'danger';
+  const selectedCat = CATEGORIES.find(c => c.id === selectedCategory);
 
   if (!ready) return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -142,16 +152,12 @@ export default function LobbyPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
-      <Navbar />
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 24px' }}>
+      <Navbar/>
+      <div style={{ maxWidth: '960px', margin: '0 auto', padding: '40px 24px' }}>
 
-        <div style={{ marginBottom: '32px' }}>
-          <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>
-            Choose your battle
-          </h1>
-          <p style={{ color: '#8888aa' }}>
-            Select a category, pick an entry fee, get matched, code faster than your opponent.
-          </p>
+        <div style={{ marginBottom: '36px' }}>
+          <h1 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '8px' }}>Choose your battle</h1>
+          <p style={{ color: '#8888aa' }}>Pick a topic and entry fee. Get matched instantly. Code to win.</p>
         </div>
 
         {balance < 10 && (
@@ -159,45 +165,86 @@ export default function LobbyPage() {
             initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
             style={{
               background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
-              borderRadius: '10px', padding: '14px 18px', marginBottom: '24px',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+              borderRadius: '10px', padding: '14px 18px', marginBottom: '28px',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f59e0b', fontSize: '14px' }}>
+            <span style={{ color: '#f59e0b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Wallet size={16}/> Balance ₹{parseFloat(balance).toFixed(2)} — add funds to compete.
-            </div>
+            </span>
             <Button size="sm" onClick={() => router.push('/wallet')}>Add funds</Button>
           </motion.div>
         )}
 
-        {/* Category selector */}
-        <div style={{ marginBottom: '24px' }}>
-          <div style={{ fontSize: '13px', color: '#8888aa', marginBottom: '10px', fontWeight: 500 }}>
-            Problem category
+        {/* Category selector — large, colorful, icon-driven */}
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '14px', fontWeight: 600, letterSpacing: '0.08em' }}>
+            CHOOSE TOPIC
           </div>
-          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => !inQueue && setSelectedCategory(cat.id)}
-                style={{
-                  padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: 500,
-                  background: selectedCategory === cat.id ? 'rgba(124,58,237,0.2)' : '#111118',
-                  border: `1px solid ${selectedCategory === cat.id ? '#7c3aed' : '#2a2a3a'}`,
-                  color: selectedCategory === cat.id ? '#8b5cf6' : '#8888aa',
-                  cursor: inQueue ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
-                }}
-              >
-                {cat.label}
-              </button>
-            ))}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            gap: '10px',
+          }}>
+            {CATEGORIES.map(cat => {
+              const active = selectedCategory === cat.id;
+              return (
+                <motion.button
+                  key={cat.id}
+                  onClick={() => !inQueue && setSelectedCategory(cat.id)}
+                  whileHover={!inQueue ? { scale: 1.03, y: -2 } : {}}
+                  whileTap={!inQueue ? { scale: 0.97 } : {}}
+                  style={{
+                    padding: '14px 12px',
+                    background: active ? cat.bg : '#111118',
+                    border: `1.5px solid ${active ? cat.border : '#2a2a3a'}`,
+                    borderRadius: '12px',
+                    cursor: inQueue ? 'not-allowed' : 'pointer',
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: '8px',
+                    transition: 'all 0.15s',
+                    boxShadow: active ? `0 0 16px ${cat.bg}` : 'none',
+                  }}
+                >
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '10px',
+                    background: active ? cat.bg : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${active ? cat.border : '#2a2a3a'}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: active ? cat.color : '#55556a',
+                    transition: 'all 0.15s',
+                  }}>
+                    {cat.icon}
+                  </div>
+                  <span style={{
+                    fontSize: '12px', fontWeight: active ? 600 : 500,
+                    color: active ? cat.color : '#8888aa',
+                    textAlign: 'center', lineHeight: 1.2,
+                  }}>
+                    {cat.label}
+                  </span>
+                  {active && (
+                    <div style={{
+                      width: 6, height: 6, borderRadius: '50%',
+                      background: cat.color,
+                    }}/>
+                  )}
+                </motion.button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Fee grid */}
+        {/* Entry fee grid */}
+        <div style={{ marginBottom: '12px' }}>
+          <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '14px', fontWeight: 600, letterSpacing: '0.08em' }}>
+            CHOOSE ENTRY FEE
+          </div>
+        </div>
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-          gap: '16px', marginBottom: '32px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+          gap: '14px', marginBottom: '32px',
         }}>
           {ENTRY_FEES.map((tier) => {
             const locked   = balance < tier.fee;
@@ -214,7 +261,7 @@ export default function LobbyPage() {
                   borderRadius: '12px', padding: '20px',
                   cursor: inQueue || locked ? 'not-allowed' : 'pointer',
                   position: 'relative', transition: 'all 0.15s',
-                  opacity: locked ? 0.45 : 1,
+                  opacity: locked ? 0.4 : 1,
                 }}
               >
                 {tier.popular && (
@@ -258,8 +305,8 @@ export default function LobbyPage() {
               <Button size="xl" fullWidth onClick={joinQueue} disabled={!selectedFee}>
                 <Zap size={20} fill="currentColor"/>
                 {selectedFee
-                  ? `Enter match — ₹${selectedFee} · ${CATEGORIES.find(c => c.id === selectedCategory)?.label}`
-                  : 'Select an entry fee'}
+                  ? `Enter match — ₹${selectedFee} · ${selectedCat?.label}`
+                  : 'Select an entry fee to continue'}
               </Button>
             </motion.div>
           ) : (
@@ -267,8 +314,9 @@ export default function LobbyPage() {
               key="queue"
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
               style={{
-                background: '#111118', border: '1px solid #2a2a3a',
+                background: '#111118', border: `1px solid ${selectedCat?.border || '#2a2a3a'}`,
                 borderRadius: '16px', padding: '40px', textAlign: 'center',
+                boxShadow: `0 0 40px ${selectedCat?.bg || 'transparent'}`,
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '24px' }}>
@@ -277,20 +325,26 @@ export default function LobbyPage() {
                     key={i}
                     animate={{ scale: [1,1.5,1], opacity: [0.4,1,0.4] }}
                     transition={{ duration: 1.2, delay: i * 0.2, repeat: Infinity }}
-                    style={{ width: 10, height: 10, borderRadius: '50%', background: '#7c3aed' }}
+                    style={{ width: 10, height: 10, borderRadius: '50%', background: selectedCat?.color || '#7c3aed' }}
                   />
                 ))}
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 600, marginBottom: '8px' }}>Finding opponent...</div>
+              <div style={{ fontSize: '22px', fontWeight: 700, marginBottom: '8px' }}>Finding opponent...</div>
               <div style={{ color: '#8888aa', fontSize: '14px', marginBottom: '4px' }}>
-                Entry fee: <strong style={{ color: '#f0f0f5' }}>₹{selectedFee}</strong>
+                <span style={{ color: selectedCat?.color }}>
+                  {selectedCat?.icon && (
+                    <span style={{ verticalAlign: 'middle', marginRight: '4px' }}>{selectedCat.icon}</span>
+                  )}
+                  {selectedCat?.label}
+                </span>
                 {' · '}
-                Category: <strong style={{ color: '#8b5cf6' }}>
-                  {CATEGORIES.find(c => c.id === selectedCategory)?.label}
-                </strong>
+                <strong style={{ color: '#f0f0f5' }}>₹{selectedFee}</strong>
+                {' · Prize '}
+                <strong style={{ color: '#10b981' }}>₹{ENTRY_FEES.find(f => f.fee === selectedFee)?.prize}</strong>
               </div>
               <div style={{
-                fontSize: '36px', fontWeight: 800, color: '#8b5cf6',
+                fontSize: '40px', fontWeight: 800,
+                color: selectedCat?.color || '#8b5cf6',
                 margin: '20px 0', fontVariantNumeric: 'tabular-nums',
               }}>
                 {formatTime(queueTime)}
