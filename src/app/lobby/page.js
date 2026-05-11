@@ -27,7 +27,7 @@ const CATEGORIES = [
   {
     id: 'all',
     label: 'All Topics',
-    icon: <Layers size={18}/>,
+    icon: <Layers size={16}/>,
     color: '#8b5cf6',
     bg: 'rgba(139,92,246,0.12)',
     border: 'rgba(139,92,246,0.35)',
@@ -35,7 +35,7 @@ const CATEGORIES = [
   {
     id: 'arrays',
     label: 'Arrays',
-    icon: <Hash size={18}/>,
+    icon: <Hash size={16}/>,
     color: '#3b82f6',
     bg: 'rgba(59,130,246,0.12)',
     border: 'rgba(59,130,246,0.35)',
@@ -43,7 +43,7 @@ const CATEGORIES = [
   {
     id: 'strings',
     label: 'Strings',
-    icon: <Type size={18}/>,
+    icon: <Type size={16}/>,
     color: '#10b981',
     bg: 'rgba(16,185,129,0.12)',
     border: 'rgba(16,185,129,0.35)',
@@ -51,7 +51,7 @@ const CATEGORIES = [
   {
     id: 'math',
     label: 'Math',
-    icon: <Calculator size={18}/>,
+    icon: <Calculator size={16}/>,
     color: '#f59e0b',
     bg: 'rgba(245,158,11,0.12)',
     border: 'rgba(245,158,11,0.35)',
@@ -59,7 +59,7 @@ const CATEGORIES = [
   {
     id: 'algorithms',
     label: 'Algorithms',
-    icon: <GitBranch size={18}/>,
+    icon: <GitBranch size={16}/>,
     color: '#ef4444',
     bg: 'rgba(239,68,68,0.12)',
     border: 'rgba(239,68,68,0.35)',
@@ -67,7 +67,7 @@ const CATEGORIES = [
   {
     id: 'data-structures',
     label: 'Data Structures',
-    icon: <Database size={18}/>,
+    icon: <Database size={16}/>,
     color: '#ec4899',
     bg: 'rgba(236,72,153,0.12)',
     border: 'rgba(236,72,153,0.35)',
