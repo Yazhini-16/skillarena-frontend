@@ -183,8 +183,9 @@ export default function LobbyPage() {
           </div>
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, 1fr)',
-            gap: '8px',
+            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+            gap: '6px',
+            overflow: 'hidden',
           }}>
             {CATEGORIES.map(cat => {
               const active = selectedCategory === cat.id;
