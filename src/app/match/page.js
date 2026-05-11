@@ -12,18 +12,7 @@ import { useRequireAuth } from '@/hooks/useRequireAuth';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 
-// Add state for available languages
-const [availableLangs, setAvailableLangs] = useState({
-  javascript: true, python: true, cpp: true, java: true,
-});
 
-// Fetch availability on mount
-useEffect(() => {
-  fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/practice/languages`)
-    .then(r => r.json())
-    .then(d => { if (d.data) setAvailableLangs(d.data); })
-    .catch(() => {});
-}, []);
 
 const LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
@@ -47,6 +36,19 @@ export default function MatchPage() {
   } = useMatchStore();
   const { user }  = useAuthStore();
   const router    = useRouter();
+
+  // Add state for available languages
+const [availableLangs, setAvailableLangs] = useState({
+  javascript: true, python: true, cpp: true, java: true,
+});
+
+// Fetch availability on mount
+useEffect(() => {
+  fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/practice/languages`)
+    .then(r => r.json())
+    .then(d => { if (d.data) setAvailableLangs(d.data); })
+    .catch(() => {});
+}, []);
 
   const [language,   setLanguage]   = useState('javascript');
   const [code,       setCode]       = useState(DEFAULT_CODE.javascript);
@@ -561,32 +563,31 @@ export default function MatchPage() {
           }}>
             <div style={{ display: 'flex', gap: '6px' }}>
               {LANGUAGES.map(lang => {
-              const available = availableLangs[lang.id] !== false;
-              const active = language === lang.id;
-              return (
-                <button
-                  key={lang.id}
-                  onClick={() => available && handleLanguageChange(lang.id)}
-                  disabled={submitted}
-                  title={!available ? `${lang.label} not available on server` : ''}
-                  style={{
-                    padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
-                    background: active ? 'rgba(124,58,237,0.2)' : 'transparent',
-                    color: active ? '#8b5cf6' : available ? '#55556a' : '#3a3a4f',
-                    border: `1px solid ${active ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
-                    cursor: submitted || !available ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
-                    opacity: !available ? 0.4 : 1,
-                    position: 'relative',
-                  }}
-                >
-                  {lang.label}
-                  {!available && (
-                    <span style={{ fontSize: '9px', marginLeft: '3px', color: '#f59e0b' }}>✕</span>
-                  )}
-                </button>
-              );
-            })}
+             const available = availableLangs[lang.id] !== false;
+             const active = language === lang.id;
+
+            return (
+              <button
+                key={lang.id}
+                onClick={() => available && handleLanguageChange(lang.id)}
+                disabled={submitted || !available}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  background: active ? 'rgba(124,58,237,0.2)' : 'transparent',
+                  color: active ? '#8b5cf6' : available ? '#55556a' : '#3a3a4f',
+                  border: `1px solid ${active ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
+                  cursor: submitted || !available ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s',
+                  opacity: !available ? 0.4 : 1,
+                }}
+              >
+                {lang.label}
+              </button>
+            );
+          })}
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <Button variant="secondary" size="sm" onClick={handleRun} loading={running} disabled={submitted || timeLeft === 0}>
