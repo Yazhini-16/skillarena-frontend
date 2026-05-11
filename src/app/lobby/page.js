@@ -182,10 +182,9 @@ export default function LobbyPage() {
             CHOOSE TOPIC
           </div>
           <div style={{
-            display: 'flex',
-            flexWrap: 'nowrap',
-            gap: '10px',
-            overflowX: 'auto',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(6, 1fr)',
+            gap: '8px',
           }}>
             {CATEGORIES.map(cat => {
               const active = selectedCategory === cat.id;
@@ -196,9 +195,8 @@ export default function LobbyPage() {
                   whileHover={!inQueue ? { scale: 1.03, y: -2 } : {}}
                   whileTap={!inQueue ? { scale: 0.97 } : {}}
                   style={{
-                    padding: '10px 16px',
-                    minWidth: '140px',
-                    height: '56px',
+                    padding: '8px 10px',
+                    height: '48px',
                     background: active ? cat.bg : '#111118',
                     border: `1.5px solid ${active ? cat.border : '#2a2a3a'}`,
                     borderRadius: '14px',
@@ -214,7 +212,7 @@ export default function LobbyPage() {
                   }}
                 >
                   <div style={{
-                    width: 30, height: 30, borderRadius: '8px',
+                    width: 24, height: 24, borderRadius: '6px',
                     background: active ? cat.bg : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${active ? cat.border : '#2a2a3a'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
