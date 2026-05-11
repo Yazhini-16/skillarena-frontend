@@ -42,6 +42,19 @@ export default function PracticePage() {
   const [solvedSet,       setSolvedSet]        = useState(new Set());
   const router = useRouter();
 
+  const [availableLangs, setAvailableLangs] = useState({
+    javascript: true, python: true, cpp: true, java: true,
+  });
+  
+  // Fetch availability on mount
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/practice/languages`)
+      .then(r => r.json())
+      .then(d => { if (d.data) setAvailableLangs(d.data); })
+      .catch(() => {});
+  }, []);
+
+
   useEffect(() => {
     loadProblems();
   }, [filterDiff, filterCat]);
@@ -508,6 +521,7 @@ export default function PracticePage() {
             }}>
               <div style={{ display: 'flex', gap: '6px' }}>
                 {LANGUAGES.map(lang => {
+                const available = availableLangs[lang.id] !== false;
                 const active = language === lang.id;
 
                 return (
