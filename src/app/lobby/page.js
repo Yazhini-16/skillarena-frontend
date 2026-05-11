@@ -182,9 +182,10 @@ export default function LobbyPage() {
             CHOOSE TOPIC
           </div>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+            display: 'flex',
+            flexWrap: 'nowrap',
             gap: '10px',
+            overflowX: 'auto',
           }}>
             {CATEGORIES.map(cat => {
               const active = selectedCategory === cat.id;
@@ -195,19 +196,25 @@ export default function LobbyPage() {
                   whileHover={!inQueue ? { scale: 1.03, y: -2 } : {}}
                   whileTap={!inQueue ? { scale: 0.97 } : {}}
                   style={{
-                    padding: '14px 12px',
+                    padding: '10px 16px',
+                    minWidth: '140px',
+                    height: '56px',
                     background: active ? cat.bg : '#111118',
                     border: `1.5px solid ${active ? cat.border : '#2a2a3a'}`,
-                    borderRadius: '12px',
+                    borderRadius: '14px',
                     cursor: inQueue ? 'not-allowed' : 'pointer',
-                    display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', gap: '8px',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'flex-start',
+                    gap: '10px',
                     transition: 'all 0.15s',
                     boxShadow: active ? `0 0 16px ${cat.bg}` : 'none',
+                    flexShrink: 0,
                   }}
                 >
                   <div style={{
-                    width: 40, height: 40, borderRadius: '10px',
+                    width: 30, height: 30, borderRadius: '8px',
                     background: active ? cat.bg : 'rgba(255,255,255,0.04)',
                     border: `1px solid ${active ? cat.border : '#2a2a3a'}`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -219,7 +226,7 @@ export default function LobbyPage() {
                   <span style={{
                     fontSize: '12px', fontWeight: active ? 600 : 500,
                     color: active ? cat.color : '#8888aa',
-                    textAlign: 'center', lineHeight: 1.2,
+                    whiteSpace: 'nowrap',
                   }}>
                     {cat.label}
                   </span>
