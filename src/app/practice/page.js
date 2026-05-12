@@ -1,16 +1,19 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import Editor from '@monaco-editor/react';
-import { Play, Send, ChevronLeft, Code2, CheckCircle, AlertCircle, Loader, Filter } from 'lucide-react';
+import {
+  Play, Send, ChevronLeft, Code2,
+  CheckCircle, AlertCircle, Loader,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import api from '@/lib/api';
 
-const LANGUAGES = [
+const ALL_LANGUAGES = [
   { id: 'javascript', label: 'JavaScript' },
   { id: 'python',     label: 'Python'     },
   { id: 'cpp',        label: 'C++'        },
@@ -27,33 +30,30 @@ const DEFAULT_CODE = {
 const DIFFICULTY_COLORS = { easy: 'success', medium: 'warning', hard: 'danger' };
 
 export default function PracticePage() {
-  const [problems,        setProblems]       = useState([]);
-  const [selectedProblem, setSelectedProblem] = useState(null);
-  const [language,        setLanguage]        = useState('javascript');
-  const [code,            setCode]            = useState(DEFAULT_CODE.javascript);
-  const [loading,         setLoading]         = useState(true);
-  const [running,         setRunning]         = useState(false);
-  const [submitting,      setSubmitting]       = useState(false);
-  const [runResults,      setRunResults]       = useState(null);
-  const [submitResult,    setSubmitResult]     = useState(null);
-  const [activeTab,       setActiveTab]        = useState('problem');
-  const [filterDiff,      setFilterDiff]       = useState('all');
-  const [filterCat,       setFilterCat]        = useState('all');
-  const [solvedSet,       setSolvedSet]        = useState(new Set());
-  const router = useRouter();
-
-  const [availableLangs, setAvailableLangs] = useState({
+  const [problems,         setProblems]         = useState([]);
+  const [selectedProblem,  setSelectedProblem]   = useState(null);
+  const [language,         setLanguage]          = useState('javascript');
+  const [code,             setCode]              = useState(DEFAULT_CODE.javascript);
+  const [loading,          setLoading]           = useState(true);
+  const [running,          setRunning]           = useState(false);
+  const [submitting,       setSubmitting]        = useState(false);
+  const [runResults,       setRunResults]        = useState(null);
+  const [submitResult,     setSubmitResult]      = useState(null);
+  const [activeTab,        setActiveTab]         = useState('problem');
+  const [filterDiff,       setFilterDiff]        = useState('all');
+  const [filterCat,        setFilterCat]         = useState('all');
+  const [solvedSet,        setSolvedSet]         = useState(new Set());
+  const [availableLangs,   setAvailableLangs]    = useState({
     javascript: true, python: true, cpp: true, java: true,
   });
-  
-  // Fetch availability on mount
+  const router = useRouter();
+
+  // Fetch language availability from backend
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/practice/languages`)
-      .then(r => r.json())
-      .then(d => { if (d.data) setAvailableLangs(d.data); })
+    api.get('/api/practice/languages')
+      .then(res => { if (res.data.data) setAvailableLangs(res.data.data); })
       .catch(() => {});
   }, []);
-
 
   useEffect(() => {
     loadProblems();
@@ -66,7 +66,7 @@ export default function PracticePage() {
       if (filterDiff !== 'all') params.set('difficulty', filterDiff);
       if (filterCat  !== 'all') params.set('category',   filterCat);
       const res = await api.get(`/api/practice/problems?${params}`);
-      setProblems(res.data.data);
+      setProblems(res.data.data || []);
     } catch {
       toast.error('Failed to load problems');
     } finally {
@@ -96,15 +96,16 @@ export default function PracticePage() {
     setActiveTab('testcases');
     try {
       const res = await api.post('/api/practice/run', {
-        problemId: selectedProblem.id,
-        language,
-        code,
+        problemId: selectedProblem.id, language, code,
       });
-      setRunResults(res.data.data);
-      const { passedCount, totalCount } = res.data.data;
-      if (passedCount === totalCount) toast.success(`All ${totalCount} sample tests passed!`);
-      else toast(`${passedCount}/${totalCount} sample tests passed`, { icon: '⚠️' });
-    } catch (err) {
+      const data = res.data.data;
+      setRunResults(data);
+      if (data.passedCount === data.totalCount) {
+        toast.success(`All ${data.totalCount} sample tests passed!`);
+      } else {
+        toast(`${data.passedCount}/${data.totalCount} passed`, { icon: '⚠️' });
+      }
+    } catch {
       toast.error('Run failed');
     } finally {
       setRunning(false);
@@ -119,9 +120,7 @@ export default function PracticePage() {
     setActiveTab('result');
     try {
       const res = await api.post('/api/practice/submit', {
-        problemId: selectedProblem.id,
-        language,
-        code,
+        problemId: selectedProblem.id, language, code,
       });
       const result = res.data.data;
       setSubmitResult(result);
@@ -131,92 +130,81 @@ export default function PracticePage() {
       } else if (result.score > 0) {
         toast(`${result.passed}/${result.total} test cases passed`, { icon: '⚠️' });
       } else {
-        toast.error(result.compileError ? 'Runtime error' : 'Wrong answer');
+        toast.error(result.compileError ? 'Error in your code' : 'Wrong answer');
       }
-    } catch (err) {
+    } catch {
       toast.error('Submission failed');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const categories = ['all', 'arrays', 'strings', 'math', 'algorithms', 'data-structures'];
-  const difficulties = ['all', 'easy', 'medium', 'hard'];
+  // Only show truly available languages
+  const visibleLanguages = ALL_LANGUAGES.filter(l => {
+    if (l.id === 'python') return availableLangs.python;
+    return true; // js, cpp, java always shown (cpp/java use smart mock)
+  });
+
+  const categories  = ['all','arrays','strings','math','algorithms','data-structures'];
+  const difficulties = ['all','easy','medium','hard'];
 
   return (
     <div style={{ minHeight: '100vh', background: '#0a0a0f' }}>
       <Navbar/>
 
       {!selectedProblem ? (
-        // Problem list view
+        // ── Problem list ───────────────────────────────────────────
         <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '40px 24px' }}>
-          <div style={{ marginBottom: '32px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-              <div style={{
-                width: 36, height: 36, borderRadius: '10px',
-                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Code2 size={18} color="#fff"/>
-              </div>
-              <h1 style={{ fontSize: '32px', fontWeight: 700 }}>Practice</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: '10px',
+              background: 'linear-gradient(135deg,#7c3aed,#4f46e5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Code2 size={18} color="#fff"/>
             </div>
-            <p style={{ color: '#8888aa' }}>
-              Solve problems for free. No entry fee. Perfect your skills before competing.
-            </p>
+            <h1 style={{ fontSize: '32px', fontWeight: 700 }}>Practice</h1>
           </div>
+          <p style={{ color: '#8888aa', marginBottom: '32px' }}>
+            Free coding problems. No entry fee. Sharpen your skills before competing.
+          </p>
 
           {/* Filters */}
           <div style={{ display: 'flex', gap: '24px', marginBottom: '24px', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px', fontWeight: 500 }}>DIFFICULTY</div>
+              <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px', fontWeight: 600 }}>DIFFICULTY</div>
               <div style={{ display: 'flex', gap: '6px' }}>
                 {difficulties.map(d => (
-                  <button
-                    key={d}
-                    onClick={() => setFilterDiff(d)}
-                    style={{
-                      padding: '5px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-                      background: filterDiff === d ? 'rgba(124,58,237,0.2)' : '#111118',
-                      border: `1px solid ${filterDiff === d ? '#7c3aed' : '#2a2a3a'}`,
-                      color: filterDiff === d ? '#8b5cf6' : '#8888aa',
-                      cursor: 'pointer', textTransform: 'capitalize',
-                    }}
-                  >
-                    {d}
-                  </button>
+                  <button key={d} onClick={() => setFilterDiff(d)} style={{
+                    padding: '5px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
+                    background: filterDiff === d ? 'rgba(124,58,237,0.2)' : '#111118',
+                    border: `1px solid ${filterDiff === d ? '#7c3aed' : '#2a2a3a'}`,
+                    color: filterDiff === d ? '#8b5cf6' : '#8888aa',
+                    cursor: 'pointer', textTransform: 'capitalize',
+                  }}>{d}</button>
                 ))}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px', fontWeight: 500 }}>CATEGORY</div>
+              <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px', fontWeight: 600 }}>CATEGORY</div>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                 {categories.map(c => (
-                  <button
-                    key={c}
-                    onClick={() => setFilterCat(c)}
-                    style={{
-                      padding: '5px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-                      background: filterCat === c ? 'rgba(124,58,237,0.2)' : '#111118',
-                      border: `1px solid ${filterCat === c ? '#7c3aed' : '#2a2a3a'}`,
-                      color: filterCat === c ? '#8b5cf6' : '#8888aa',
-                      cursor: 'pointer', textTransform: 'capitalize',
-                    }}
-                  >
-                    {c.replace('-', ' ')}
-                  </button>
+                  <button key={c} onClick={() => setFilterCat(c)} style={{
+                    padding: '5px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
+                    background: filterCat === c ? 'rgba(124,58,237,0.2)' : '#111118',
+                    border: `1px solid ${filterCat === c ? '#7c3aed' : '#2a2a3a'}`,
+                    color: filterCat === c ? '#8b5cf6' : '#8888aa',
+                    cursor: 'pointer', textTransform: 'capitalize',
+                  }}>{c.replace('-', ' ')}</button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Problem list */}
           {loading ? (
             <div style={{ textAlign: 'center', padding: '60px', color: '#55556a' }}>Loading problems...</div>
           ) : problems.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px', color: '#55556a' }}>
-              No problems found for this filter.
-            </div>
+            <div style={{ textAlign: 'center', padding: '60px', color: '#55556a' }}>No problems found.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {problems.map((problem, i) => (
@@ -224,7 +212,7 @@ export default function PracticePage() {
                   key={problem.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.03 }}
+                  transition={{ delay: i * 0.02 }}
                   onClick={() => selectProblem(problem)}
                   whileHover={{ scale: 1.005 }}
                   style={{
@@ -236,7 +224,7 @@ export default function PracticePage() {
                     cursor: 'pointer', transition: 'all 0.15s',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
                     <div style={{
                       width: 32, height: 32, borderRadius: '8px', flexShrink: 0,
                       background: solvedSet.has(problem.id) ? 'rgba(16,185,129,0.15)' : 'rgba(124,58,237,0.1)',
@@ -248,16 +236,16 @@ export default function PracticePage() {
                       }
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: '15px', marginBottom: '4px' }}>
+                      <div style={{ fontWeight: 600, fontSize: '15px', marginBottom: '3px' }}>
                         {problem.title}
                       </div>
                       <div style={{ fontSize: '12px', color: '#55556a', textTransform: 'capitalize' }}>
-                        {problem.category?.replace('-', ' ')}
+                        {(problem.category || '').replace('-', ' ')}
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Badge variant={DIFFICULTY_COLORS[problem.difficulty]}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Badge variant={DIFFICULTY_COLORS[problem.difficulty] || 'default'}>
                       {problem.difficulty}
                     </Badge>
                     <div style={{ fontSize: '12px', color: '#55556a' }}>
@@ -270,7 +258,7 @@ export default function PracticePage() {
           )}
         </div>
       ) : (
-        // Problem solving view — split layout like match screen
+        // ── Problem solving view ───────────────────────────────────
         <div style={{ height: 'calc(100vh - 64px)', display: 'flex', overflow: 'hidden' }}>
 
           {/* Left panel */}
@@ -278,58 +266,51 @@ export default function PracticePage() {
             width: '40%', borderRight: '1px solid #2a2a3a',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
-            {/* Back button */}
+            {/* Back + meta */}
             <div style={{
-              padding: '12px 16px', borderBottom: '1px solid #2a2a3a',
+              padding: '10px 16px', borderBottom: '1px solid #2a2a3a',
               background: '#111118', display: 'flex', alignItems: 'center', gap: '12px',
             }}>
               <button
                 onClick={() => { setSelectedProblem(null); setSubmitResult(null); setRunResults(null); }}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
+                  display: 'flex', alignItems: 'center', gap: '5px',
                   color: '#8888aa', background: 'none', border: 'none',
-                  cursor: 'pointer', fontSize: '13px', padding: '4px 8px',
-                  borderRadius: '6px', transition: 'color 0.15s',
+                  cursor: 'pointer', fontSize: '13px', borderRadius: '6px',
+                  padding: '4px 8px', transition: 'color 0.15s',
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#f0f0f5'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#8888aa'}
+                onMouseEnter={e => e.currentTarget.style.color = '#f0f0f5'}
+                onMouseLeave={e => e.currentTarget.style.color = '#8888aa'}
               >
                 <ChevronLeft size={16}/> All Problems
               </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                <Badge variant={DIFFICULTY_COLORS[selectedProblem.difficulty]}>
+                <Badge variant={DIFFICULTY_COLORS[selectedProblem.difficulty] || 'default'}>
                   {selectedProblem.difficulty}
                 </Badge>
                 <span style={{ fontSize: '12px', color: '#55556a', textTransform: 'capitalize' }}>
-                  {selectedProblem.category?.replace('-', ' ')}
+                  {(selectedProblem.category || '').replace('-', ' ')}
                 </span>
               </div>
             </div>
 
             {/* Tabs */}
             <div style={{ display: 'flex', borderBottom: '1px solid #2a2a3a', background: '#111118' }}>
-              {[
-                { id: 'problem',   label: 'Problem'    },
-                { id: 'testcases', label: 'Test Cases'  },
-                { id: 'result',    label: 'Result'      },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  style={{
-                    padding: '10px 20px', fontSize: '13px', fontWeight: 500,
-                    color: activeTab === tab.id ? '#f0f0f5' : '#55556a',
-                    borderBottom: activeTab === tab.id ? '2px solid #7c3aed' : '2px solid transparent',
-                    background: 'none', transition: 'all 0.15s',
-                  }}
-                >
-                  {tab.label}
+              {['problem','testcases','result'].map(tab => (
+                <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                  padding: '10px 20px', fontSize: '13px', fontWeight: 500,
+                  color: activeTab === tab ? '#f0f0f5' : '#55556a',
+                  borderBottom: activeTab === tab ? '2px solid #7c3aed' : '2px solid transparent',
+                  background: 'none', transition: 'all 0.15s', textTransform: 'capitalize',
+                }}>
+                  {tab === 'testcases' ? 'Test Cases' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                 </button>
               ))}
             </div>
 
             <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
 
+              {/* Problem tab */}
               {activeTab === 'problem' && (
                 <div>
                   <h2 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '16px' }}>
@@ -340,13 +321,15 @@ export default function PracticePage() {
                   </p>
                   {selectedProblem.test_cases?.length > 0 && (
                     <div style={{ marginTop: '24px' }}>
-                      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#8888aa' }}>EXAMPLES</div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '12px', color: '#8888aa' }}>
+                        EXAMPLES
+                      </div>
                       {selectedProblem.test_cases.map((tc, i) => (
                         <div key={i} style={{
                           background: '#0a0a0f', border: '1px solid #2a2a3a',
                           borderRadius: '8px', padding: '14px', marginBottom: '10px',
                         }}>
-                          <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px' }}>Example {i + 1}</div>
+                          <div style={{ fontSize: '12px', color: '#55556a', marginBottom: '8px' }}>Example {i+1}</div>
                           <div style={{ marginBottom: '8px' }}>
                             <div style={{ fontSize: '11px', color: '#8888aa', marginBottom: '4px' }}>Input</div>
                             <pre style={{ fontSize: '13px', color: '#10b981', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{tc.input}</pre>
@@ -365,12 +348,12 @@ export default function PracticePage() {
                     border: '1px solid rgba(16,185,129,0.2)',
                     borderRadius: '8px', fontSize: '13px', color: '#8888aa',
                   }}>
-                    🆓 Practice mode — free, no entry fee, no hearts lost.
-                    Submit as many times as you want.
+                    🆓 Practice mode — free, no entry fee, no hearts lost. Submit unlimited times.
                   </div>
                 </div>
               )}
 
+              {/* Test cases tab */}
               {activeTab === 'testcases' && (
                 <div>
                   {running && (
@@ -383,13 +366,13 @@ export default function PracticePage() {
                   )}
                   {!running && !runResults && (
                     <div style={{ textAlign: 'center', padding: '40px 0', color: '#55556a', fontSize: '14px' }}>
-                      Click <strong style={{ color: '#8b5cf6' }}>Run</strong> to test your code
+                      Click <strong style={{ color: '#8b5cf6' }}>Run</strong> to test your code against sample cases
                     </div>
                   )}
                   {!running && runResults && (
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-                        <span style={{ fontSize: '14px', fontWeight: 600 }}>Test Results</span>
+                        <span style={{ fontSize: '14px', fontWeight: 600 }}>Sample Results</span>
                         <Badge variant={runResults.passedCount === runResults.totalCount ? 'success' : 'warning'}>
                           {runResults.passedCount}/{runResults.totalCount} passed
                         </Badge>
@@ -404,7 +387,7 @@ export default function PracticePage() {
                             <span style={{ fontSize: '13px', fontWeight: 500 }}>Test {r.index}</span>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               {r.timeMs > 0 && <span style={{ fontSize: '11px', color: '#55556a' }}>{r.timeMs}ms</span>}
-                              <Badge variant={r.passed ? 'success' : 'danger'}>{r.passed ? '✓' : '✗'}</Badge>
+                              <Badge variant={r.passed ? 'success' : 'danger'}>{r.passed ? '✓ Passed' : '✗ Failed'}</Badge>
                             </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
@@ -417,7 +400,7 @@ export default function PracticePage() {
                               <pre style={{ fontSize: '12px', color: '#8b5cf6', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.expected}</pre>
                             </div>
                           </div>
-                          {!r.passed && (
+                          {!r.passed && r.actual !== undefined && (
                             <div style={{ marginTop: '8px' }}>
                               <div style={{ fontSize: '11px', color: '#ef4444', marginBottom: '4px' }}>Your output</div>
                               <pre style={{ fontSize: '12px', color: '#ef4444', margin: 0, fontFamily: 'monospace', whiteSpace: 'pre-wrap' }}>{r.actual || '(empty)'}</pre>
@@ -436,6 +419,7 @@ export default function PracticePage() {
                 </div>
               )}
 
+              {/* Result tab */}
               {activeTab === 'result' && (
                 <div>
                   {submitting && (
@@ -469,34 +453,30 @@ export default function PracticePage() {
                           </Badge>
                         </div>
                         {submitResult.score === 100 && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3 }}
-                            style={{ marginTop: '16px', fontSize: '14px', color: '#10b981' }}
-                          >
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+                            style={{ marginTop: '16px', fontSize: '14px', color: '#10b981' }}>
                             🎉 Problem solved! Ready to compete for real money?
                           </motion.div>
                         )}
                       </div>
                       {submitResult.compileError && (
-                        <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
-                          <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px', fontWeight: 600 }}>Runtime Error</div>
-                          <pre style={{ fontSize: '12px', color: '#f87171', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{submitResult.compileError.slice(0, 300)}</pre>
+                        <div style={{
+                          background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)',
+                          borderRadius: '8px', padding: '12px', marginBottom: '16px',
+                        }}>
+                          <div style={{ fontSize: '12px', color: '#ef4444', marginBottom: '6px', fontWeight: 600 }}>Error in your code</div>
+                          <pre style={{ fontSize: '12px', color: '#f87171', margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                            {submitResult.compileError.slice(0, 300)}
+                          </pre>
                         </div>
                       )}
                       <div style={{ display: 'flex', gap: '10px' }}>
-                        <Button
-                          variant="secondary" size="sm" fullWidth
-                          onClick={() => { setSubmitResult(null); setActiveTab('problem'); }}
-                        >
+                        <Button variant="secondary" size="sm" fullWidth
+                          onClick={() => { setSubmitResult(null); setActiveTab('problem'); }}>
                           Try again
                         </Button>
                         {submitResult.score === 100 && (
-                          <Button
-                            size="sm" fullWidth
-                            onClick={() => router.push('/lobby')}
-                          >
+                          <Button size="sm" fullWidth onClick={() => router.push('/lobby')}>
                             Compete now →
                           </Button>
                         )}
@@ -519,31 +499,26 @@ export default function PracticePage() {
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '8px 16px', background: '#111118', borderBottom: '1px solid #2a2a3a',
             }}>
+              {/* Language selector — only show available languages */}
               <div style={{ display: 'flex', gap: '6px' }}>
-                {LANGUAGES.map(lang => {
-                const available = availableLangs[lang.id] !== false;
-                const active = language === lang.id;
-
-                return (
-                  <button
-                    key={lang.id}
-                    onClick={() => handleLanguageChange(lang.id)}
-                    style={{
-                      padding: '5px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 500,
-                      background: active ? 'rgba(124,58,237,0.2)' : 'transparent',
-                      color: active ? '#8b5cf6' : '#55556a',
-                      border: `1px solid ${active ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {lang.label}
-                  </button>
-                );
-              })}
+                {visibleLanguages.map(lang => {
+                  const active = language === lang.id;
+                  return (
+                    <button
+                      key={lang.id}
+                      onClick={() => handleLanguageChange(lang.id)}
+                      style={{
+                        padding: '5px 12px', borderRadius: '6px', fontSize: '12px', fontWeight: 500,
+                        background: active ? 'rgba(124,58,237,0.2)' : 'transparent',
+                        color: active ? '#8b5cf6' : '#55556a',
+                        border: `1px solid ${active ? 'rgba(124,58,237,0.4)' : 'transparent'}`,
+                        cursor: 'pointer', transition: 'all 0.15s',
+                      }}
+                    >
+                      {lang.label}
+                    </button>
+                  );
+                })}
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <Button variant="secondary" size="sm" onClick={handleRun} loading={running}>
